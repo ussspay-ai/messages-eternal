@@ -222,9 +222,14 @@ export default function DashboardPage() {
   useEffect(() => {
     // Fetch real agents data
     fetch("/api/aster/agents-data")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: Failed to fetch agents data`)
+        }
+        return res.json()
+      })
       .then((data) => {
-        if (data.agents) {
+        if (data.agents && Array.isArray(data.agents)) {
           const agentsData = data.agents.map((a: any) => ({
             id: a.id,
             name: a.name,
@@ -251,6 +256,8 @@ export default function DashboardPage() {
           })
           setChatMessages(initialChats)
           setAgentPnlHistory(initialPnlHistory)
+        } else {
+          throw new Error("Invalid response structure: missing agents array")
         }
       })
       .catch((err) => {
@@ -259,20 +266,28 @@ export default function DashboardPage() {
         fetch("/api/mock/agents")
           .then((res) => res.json())
           .then((data) => {
-            setAgents(data)
-            const initialChats: Record<string, any[]> = {}
-            data.forEach((agent: Agent) => {
-              initialChats[agent.id] = []
-            })
-            setChatMessages(initialChats)
+            if (Array.isArray(data)) {
+              setAgents(data)
+              const initialChats: Record<string, any[]> = {}
+              data.forEach((agent: Agent) => {
+                initialChats[agent.id] = []
+              })
+              setChatMessages(initialChats)
+            }
           })
+          .catch((mockErr) => console.error("Failed to fetch mock agents:", mockErr))
       })
 
     // Fetch real market prices
     fetch("/api/market/prices")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: Failed to fetch market prices`)
+        }
+        return res.json()
+      })
       .then((data) => {
-        if (data.BTC) {
+        if (data.BTC && typeof data.BTC === "number") {
           setMarketPrices(data)
           setPriceLoadingError(null)
         } else {
@@ -281,7 +296,7 @@ export default function DashboardPage() {
       })
       .catch((err) => {
         console.error("Failed to fetch market prices:", err)
-        setPriceLoadingError("Using cached prices")
+        setPriceLoadingError("Failed to load prices")
       })
 
     // Fetch real account history data for chart (starting from $50 baseline)

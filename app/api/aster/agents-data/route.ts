@@ -110,12 +110,18 @@ export async function GET() {
     // Calculate aggregates
     const portfolio_value = agentsData.reduce((sum, a) => sum + a.account_value, 0)
     const total_pnl = agentsData.reduce((sum, a) => sum + a.pnl, 0)
-    const bestPerformer = agentsData.reduce((prev, current) =>
-      prev.roi > current.roi ? prev : current
-    )
-    const worstPerformer = agentsData.reduce((prev, current) =>
-      prev.roi < current.roi ? prev : current
-    )
+    
+    let bestPerformer = null
+    let worstPerformer = null
+    
+    if (agentsData.length > 0) {
+      bestPerformer = agentsData.reduce((prev, current) =>
+        prev.roi > current.roi ? prev : current
+      )
+      worstPerformer = agentsData.reduce((prev, current) =>
+        prev.roi < current.roi ? prev : current
+      )
+    }
 
     const response = {
       agents: agentsData,
