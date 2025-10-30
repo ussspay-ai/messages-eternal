@@ -156,6 +156,9 @@
 
 /* Apple-inspired clean typography */
 @layer base {
+  html {
+    zoom: 75%;
+  }
   * {
     @apply border-border outline-ring/50;
   }
