@@ -38,14 +38,23 @@ export async function GET(request: NextRequest) {
     // If specific symbol requested, fetch those trades
     if (symbol) {
       const cacheKey = CACHE_KEYS.trades(agentId, limit)
-      const cached = await getCache(cacheKey)
-      if (cached) {
-        return NextResponse.json(cached)
+      try {
+        const cached = await getCache(cacheKey)
+        if (cached) {
+          return NextResponse.json(cached)
+        }
+      } catch (cacheError) {
+        console.warn("Cache unavailable for trades, proceeding without cache:", cacheError)
+        // Continue without cache
       }
 
       const tradesData = await client.getTrades(symbol, limit)
       const trades = tradesData.trades || []
-      await setCache(cacheKey, trades, { ttl: 10 })
+      try {
+        await setCache(cacheKey, trades, { ttl: 10 })
+      } catch (cacheError) {
+        console.warn("Could not cache trades:", cacheError)
+      }
       return NextResponse.json(trades)
     }
 

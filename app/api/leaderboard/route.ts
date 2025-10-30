@@ -55,7 +55,15 @@ const AGENT_COLORS: Record<string, string> = {
  */
 async function saveSnapshotsIfNeeded(agents: LeaderboardAgent[]): Promise<void> {
   const lastSaveKey = "leaderboard:last_snapshot_save"
-  const lastSave = await getCache<number>(lastSaveKey)
+  let lastSave: number | undefined = undefined
+  
+  try {
+    lastSave = (await getCache<number>(lastSaveKey)) ?? undefined
+  } catch (cacheError) {
+    console.warn("Cache unavailable for snapshot check:", cacheError)
+    // Continue without cache
+  }
+  
   const now = Date.now()
   const fiveMinutesMs = 5 * 60 * 1000
 
@@ -80,8 +88,12 @@ async function saveSnapshotsIfNeeded(agents: LeaderboardAgent[]): Promise<void> 
     // Save to Supabase
     await saveAgentSnapshots(snapshots)
 
-    // Update last save time in Redis
-    await setCache(lastSaveKey, now, { ttl: 600 }) // Keep in cache for 10 minutes
+    // Try to update last save time in Redis
+    try {
+      await setCache(lastSaveKey, now, { ttl: 600 }) // Keep in cache for 10 minutes
+    } catch (cacheError) {
+      console.warn("Could not update snapshot cache:", cacheError)
+    }
   } catch (error) {
     console.error("Error saving snapshots:", error)
     // Don't throw - let the leaderboard request continue even if snapshot save fails
@@ -98,9 +110,14 @@ async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
   
   // Check cache first
   const cacheKey = `agent_symbols:${agentId}`
-  const cached = await getCache<string[]>(cacheKey)
-  if (cached) {
-    return cached
+  try {
+    const cached = await getCache<string[]>(cacheKey)
+    if (cached) {
+      return cached
+    }
+  } catch (cacheError) {
+    console.warn(`Cache unavailable for agent symbols ${agentId}:`, cacheError)
+    // Continue without cache
   }
 
   try {
@@ -117,8 +134,12 @@ async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
         // Convert base symbols to USDT pairs if needed
         const pairs = symbols.map((s: string) => s.endsWith("USDT") ? s : `${s}USDT`)
         
-        // Cache for 1 hour
-        await setCache(cacheKey, pairs, { ttl: 3600 })
+        // Try to cache for 1 hour
+        try {
+          await setCache(cacheKey, pairs, { ttl: 3600 })
+        } catch (cacheError) {
+          console.warn("Could not cache agent symbols:", cacheError)
+        }
         console.log(`[Leaderboard] Fetched configured symbols for ${agentId}: ${pairs.join(", ")}`)
         return pairs
       }
@@ -129,7 +150,11 @@ async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
 
   // Fallback to default symbols from constants
   const defaultSymbols = PRIMARY_SYMBOLS
-  await setCache(cacheKey, defaultSymbols, { ttl: 3600 })
+  try {
+    await setCache(cacheKey, defaultSymbols, { ttl: 3600 })
+  } catch (cacheError) {
+    console.warn("Could not cache default agent symbols:", cacheError)
+  }
   console.log(`[Leaderboard] Using default symbols for ${agentId}: ${defaultSymbols.join(", ")}`)
   return defaultSymbols
 }
@@ -287,7 +312,13 @@ export async function GET(request: NextRequest) {
     const cacheKey = CACHE_KEYS.leaderboard()
 
     // Try to get cached agents first (5 second TTL)
-    let agents: LeaderboardAgent[] = await getCache<LeaderboardAgent[]>(cacheKey) || []
+    let agents: LeaderboardAgent[] = []
+    try {
+      agents = await getCache<LeaderboardAgent[]>(cacheKey) || []
+    } catch (cacheError) {
+      console.warn("Cache unavailable for leaderboard, proceeding without cache:", cacheError)
+      // Continue without cache - don't fail if Redis is down
+    }
 
     // If no cache, fetch fresh data from Aster API
     if (agents.length === 0) {
@@ -298,9 +329,13 @@ export async function GET(request: NextRequest) {
     // Sort by account value (descending)
     const sorted = agents.sort((a, b) => b.accountValue - a.accountValue)
 
-    // Cache for 5 seconds
+    // Try to cache for 5 seconds, but don't fail if it doesn't work
     if (sorted.length > 0) {
-      await setCache(cacheKey, sorted, { ttl: 5 })
+      try {
+        await setCache(cacheKey, sorted, { ttl: 5 })
+      } catch (cacheError) {
+        console.warn("Could not cache leaderboard data:", cacheError)
+      }
       
       // Save historical snapshots every 5 minutes
       await saveSnapshotsIfNeeded(sorted)

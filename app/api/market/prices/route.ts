@@ -65,12 +65,17 @@ export async function GET() {
   try {
     // Try cache first (30 second TTL - respects Binance rate limits)
     const cacheKey = CACHE_KEYS.market("prices")
-    const cached = await getCache(cacheKey)
-    if (cached) {
-      return NextResponse.json({
-        ...cached,
-        source: "cached",
-      })
+    try {
+      const cached = await getCache(cacheKey)
+      if (cached) {
+        return NextResponse.json({
+          ...cached,
+          source: "cached",
+        })
+      }
+    } catch (cacheError) {
+      console.warn("Cache unavailable, proceeding without cache:", cacheError)
+      // Continue without cache - don't fail if Redis is down
     }
 
     // Fetch fresh prices from Binance
@@ -95,8 +100,12 @@ export async function GET() {
       source: "binance",
     }
 
-    // Cache for 30 seconds
-    await setCache(cacheKey, response, { ttl: 30 })
+    // Try to cache for 30 seconds, but don't fail if it doesn't work
+    try {
+      await setCache(cacheKey, response, { ttl: 30 })
+    } catch (cacheError) {
+      console.warn("Could not cache prices:", cacheError)
+    }
 
     return NextResponse.json(response)
   } catch (error) {

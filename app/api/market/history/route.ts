@@ -74,12 +74,17 @@ export async function GET(request: Request) {
 
     // Try cache first
     const cacheKey = CACHE_KEYS.market(`history_${symbol}_${interval}`)
-    const cached = await getCache(cacheKey)
-    if (cached) {
-      return NextResponse.json({
-        ...cached,
-        source: "cached",
-      })
+    try {
+      const cached = await getCache(cacheKey)
+      if (cached) {
+        return NextResponse.json({
+          ...cached,
+          source: "cached",
+        })
+      }
+    } catch (cacheError) {
+      console.warn("Cache unavailable for market history, proceeding without cache:", cacheError)
+      // Continue without cache - don't fail if Redis is down
     }
 
     // Fetch from Binance klines endpoint
@@ -109,9 +114,13 @@ export async function GET(request: Request) {
       source: "binance",
     }
 
-    // Cache based on interval
-    const ttl = interval === "1m" ? 60 : interval === "5m" ? 300 : 3600 // 1h default
-    await setCache(cacheKey, historyData, { ttl })
+    // Try to cache based on interval, but don't fail if it doesn't work
+    try {
+      const ttl = interval === "1m" ? 60 : interval === "5m" ? 300 : 3600 // 1h default
+      await setCache(cacheKey, historyData, { ttl })
+    } catch (cacheError) {
+      console.warn("Could not cache market history:", cacheError)
+    }
 
     return NextResponse.json(historyData)
   } catch (error) {
