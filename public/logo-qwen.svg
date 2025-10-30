@@ -1,0 +1,15 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Qwen Logo: Star burst inspired design -->
+  <circle cx="128" cy="128" r="50" fill="#A855F7" opacity="0.2" stroke="#A855F7" stroke-width="3"/>
+  <g stroke="#A855F7" stroke-width="4" stroke-linecap="round" fill="none">
+    <line x1="128" y1="30" x2="128" y2="80"/>
+    <line x1="128" y1="176" x2="128" y2="226"/>
+    <line x1="30" y1="128" x2="80" y2="128"/>
+    <line x1="176" y1="128" x2="226" y2="128"/>
+    <line x1="50" y1="50" x2="90" y2="90"/>
+    <line x1="166" y1="166" x2="206" y2="206"/>
+    <line x1="206" y1="50" x2="166" y2="90"/>
+    <line x1="90" y1="166" x2="50" y2="206"/>
+  </g>
+  <circle cx="128" cy="128" r="18" fill="#A855F7"/>
+</svg>

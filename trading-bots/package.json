@@ -1,0 +1,37 @@
+{
+  "name": "nof1-trading-bots",
+  "version": "1.0.0",
+  "description": "AI Trading Bots for Aster DEX",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start:all": "node --loader ts-node/esm start-all.ts",
+    "start:agent1": "node --loader ts-node/esm agents/agent1-claude.ts",
+    "start:agent2": "node --loader ts-node/esm agents/agent2-gpt4.ts",
+    "start:agent3": "node --loader ts-node/esm agents/agent3-gemini.ts",
+    "start:agent4": "node --loader ts-node/esm agents/agent4-deepseek.ts",
+    "start:agent5": "node --loader ts-node/esm agents/agent5-bh.ts",
+    "fund:agents": "node --loader ts-node/esm fund-agents.ts",
+    "verify:funding": "node --loader ts-node/esm verify-funding.ts",
+    "build": "tsc",
+    "dev": "ts-node-esm start-all.ts"
+  },
+  "keywords": [
+    "trading",
+    "bot",
+    "aster",
+    "dex",
+    "ai"
+  ],
+  "author": "NOF1",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "ethers": "^6.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  }
+}

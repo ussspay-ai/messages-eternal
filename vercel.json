@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "public": false,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "env": {
+    "NEXT_PUBLIC_APP_NAME": "BNBFORGE Trading Platform",
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "redirects": [
+    {
+      "source": "/agents",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    },
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-DNS-Prefetch-Control",
+          "value": "on"
+        }
+      ]
+    }
+  ],
+  "framework": "nextjs"
+}

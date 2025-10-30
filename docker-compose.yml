@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: nof1-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass redis123
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nof1-network
+
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nof1-app
+    ports:
+      - "3000:3000"
+    environment:
+      # Aster Configuration
+      ASTER_USER_ADDRESS: ${ASTER_USER_ADDRESS}
+      AGENT_1_SIGNER: ${AGENT_1_SIGNER}
+      AGENT_1_PRIVATE_KEY: ${AGENT_1_PRIVATE_KEY}
+      AGENT_2_SIGNER: ${AGENT_2_SIGNER}
+      AGENT_2_PRIVATE_KEY: ${AGENT_2_PRIVATE_KEY}
+      AGENT_3_SIGNER: ${AGENT_3_SIGNER}
+      AGENT_3_PRIVATE_KEY: ${AGENT_3_PRIVATE_KEY}
+      AGENT_4_SIGNER: ${AGENT_4_SIGNER}
+      AGENT_4_PRIVATE_KEY: ${AGENT_4_PRIVATE_KEY}
+      
+      # Redis (use redis service hostname)
+      REDIS_URL: redis://:redis123@redis:6379
+      
+      # Node environment
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_NAME: NOF1 Trading Platform
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - nof1-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Optional: Nginx Reverse Proxy (for production)
+  nginx:
+    image: nginx:alpine
+    container_name: nof1-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - app
+    networks:
+      - nof1-network
+    restart: unless-stopped
+    profiles: ["production"]
+
+volumes:
+  redis_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+networks:
+  nof1-network:
+    driver: bridge

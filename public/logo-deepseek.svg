@@ -1,0 +1,6 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- DeepSeek Logo: Simple magnifying glass inspired design -->
+  <circle cx="85" cy="85" r="60" stroke="#3B82F6" stroke-width="8" fill="none"/>
+  <line x1="140" y1="140" x2="200" y2="200" stroke="#3B82F6" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="85" cy="85" r="40" stroke="#3B82F6" stroke-width="4" fill="none" opacity="0.5"/>
+</svg>
