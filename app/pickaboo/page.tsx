@@ -752,6 +752,15 @@ export default function PickabooAdmin() {
                   </Button>
                 </div>
 
+                {walletError && (
+                  <Alert className="bg-red-50 border border-red-200 text-red-800">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-sm ml-2" style={{ fontFamily: 'JetBrains Mono' }}>
+                      {walletError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {connectedAddress && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-xs text-gray-600 mb-1" style={{ fontFamily: 'JetBrains Mono' }}>Connected Wallet:</p>

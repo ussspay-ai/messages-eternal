@@ -27,9 +27,14 @@ export async function GET() {
   try {
     // Try cache first (5 second TTL for dashboard)
     const cacheKey = CACHE_KEYS.dashboard()
-    const cached = await getCache(cacheKey)
-    if (cached) {
-      return NextResponse.json(cached)
+    try {
+      const cached = await getCache(cacheKey)
+      if (cached) {
+        return NextResponse.json(cached)
+      }
+    } catch (cacheError) {
+      console.warn("Cache unavailable, proceeding without cache:", cacheError)
+      // Continue without caching - don't fail if Redis is down
     }
 
     const agents = getAllAgents()
@@ -121,8 +126,12 @@ export async function GET() {
       timestamp: new Date().toISOString(),
     }
 
-    // Cache for 5 seconds
-    await setCache(cacheKey, response, { ttl: 5 })
+    // Try to cache for 5 seconds, but don't fail if it doesn't work
+    try {
+      await setCache(cacheKey, response, { ttl: 5 })
+    } catch (cacheError) {
+      console.warn("Could not cache agents data:", cacheError)
+    }
 
     return NextResponse.json(response)
   } catch (error) {

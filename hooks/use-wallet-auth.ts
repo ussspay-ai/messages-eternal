@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef } from 'react'
 
 interface WalletConnectResult {
   success: boolean
@@ -13,13 +13,30 @@ export function useWalletAuth() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  
+  // Use ref to track if a connection is already pending to prevent race conditions
+  const connectionPendingRef = useRef(false)
 
   /**
    * Connect wallet using injected provider (MetaMask, etc.)
    */
   const connectWallet = useCallback(async (): Promise<WalletConnectResult> => {
+    // Prevent multiple simultaneous connection attempts
+    if (connectionPendingRef.current) {
+      const err = 'Wallet connection already in progress. Please wait...'
+      setError(err)
+      return { success: false, error: err }
+    }
+
+    connectionPendingRef.current = true
     setIsConnecting(true)
     setError(null)
+    
+    // Set timeout to reset pending flag if connection hangs
+    const timeoutId = setTimeout(() => {
+      connectionPendingRef.current = false
+      setIsConnecting(false)
+    }, 30000) // 30 second timeout
 
     try {
       // Check if Web3 provider exists
@@ -45,12 +62,28 @@ export function useWalletAuth() {
 
       return { success: true, address }
     } catch (err: any) {
+      // Handle pending request error gracefully
+      if (err?.message?.includes('already pending')) {
+        const errorMessage = 'Wallet request already in progress. Please check your wallet popup or wait a moment and try again.'
+        setError(errorMessage)
+        return { success: false, error: errorMessage }
+      }
+      
+      // Handle user rejection
+      if (err?.code === 4001 || err?.message?.includes('User rejected')) {
+        const errorMessage = 'Connection cancelled. Please try again.'
+        setError(errorMessage)
+        return { success: false, error: errorMessage }
+      }
+      
       const errorMessage =
         err?.message || 'Failed to connect wallet'
       setError(errorMessage)
       return { success: false, error: errorMessage }
     } finally {
+      clearTimeout(timeoutId)
       setIsConnecting(false)
+      connectionPendingRef.current = false
     }
   }, [])
 

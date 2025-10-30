@@ -104,15 +104,24 @@ export async function GET() {
   try {
     // Try cache first (2 minute TTL for history - updates every 5 minutes)
     const cacheKey = CACHE_KEYS.accountHistory()
-    const cached = await getCache(cacheKey)
-    if (cached) {
-      return NextResponse.json(cached)
+    try {
+      const cached = await getCache(cacheKey)
+      if (cached) {
+        return NextResponse.json(cached)
+      }
+    } catch (cacheError) {
+      console.warn("Cache unavailable, proceeding without cache:", cacheError)
+      // Continue without caching - don't fail if Redis is down
     }
 
     const historyData = await generateAccountHistory()
 
-    // Cache for 2 minutes
-    await setCache(cacheKey, historyData, { ttl: 120 })
+    // Try to cache, but don't fail if it doesn't work
+    try {
+      await setCache(cacheKey, historyData, { ttl: 120 })
+    } catch (cacheError) {
+      console.warn("Could not cache history data:", cacheError)
+    }
 
     return NextResponse.json(historyData)
   } catch (error) {
