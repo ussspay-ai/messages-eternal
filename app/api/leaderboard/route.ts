@@ -248,7 +248,7 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
       }
 
       // Calculate metrics
-      const initialCapital = agent.initial_capital * 10000 // Convert from thousands
+      const initialCapital = agent.initial_capital || 50 // Fallback to 50 if not set
       const currentAccountValue = stats.equity || 0
       const totalPnL = stats.total_pnl || 0
       const returnPercent = stats.total_roi !== undefined ? stats.total_roi : ((currentAccountValue - initialCapital) / initialCapital) * 100

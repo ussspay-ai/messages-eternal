@@ -40,7 +40,7 @@ export async function GET() {
     const agents = getAllAgents()
     const agentsData: AgentData[] = []
 
-    // Fetch data for each agent
+    // Fetch data for each agent with timeout per agent
     for (const agent of agents) {
       let credentials = null
       try {
@@ -56,11 +56,18 @@ export async function GET() {
           userApiSecret: credentials.userApiSecret,
         })
 
-        const stats = await client.getAccountInfo()
+        // Wrap with a timeout - 6.5 seconds max per agent to leave buffer for Vercel
+        let stats
+        stats = await Promise.race([
+          client.getAccountInfo(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`Timeout fetching data for ${agent.id}`)), 6500)
+          )
+        ]) as any
 
-        const openPositions = stats.positions.filter((p) => p.positionAmt !== 0).length
-        const initialCapital = 50 // Agents are funded with $50
-        const currentValue = stats.equity || 50
+        const openPositions = stats.positions.filter((p: any) => p.positionAmt !== 0).length
+        const initialCapital = agent.initial_capital || 50 // Use per-agent initial capital
+        const currentValue = stats.equity || initialCapital
         const totalPnl = stats.total_pnl || 0
         const roi = stats.total_roi !== undefined ? stats.total_roi : ((currentValue - initialCapital) / initialCapital) * 100
 
@@ -89,15 +96,16 @@ export async function GET() {
           hasUserApiKey: !!credentials?.userApiKey,
           hasUserApiSecret: !!credentials?.userApiSecret,
         })
-        // Add agent with default $50 funding on error
+        // Add agent with default funding on error
+        const fallbackCapital = agent.initial_capital || 50
         agentsData.push({
           id: agent.id,
           name: agent.name,
           model: agent.model,
           strategy: agent.strategy,
           logo_url: agent.logo_url,
-          account_value: 50,
-          total_balance: 50,
+          account_value: fallbackCapital,
+          total_balance: fallbackCapital,
           roi: 0,
           pnl: 0,
           total_pnl: 0,

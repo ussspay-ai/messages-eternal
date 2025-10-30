@@ -175,6 +175,7 @@ export class AsterClient {
         "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "NOF1-Trading-Platform/1.0",
       },
+      signal: AbortSignal.timeout(8000), // 8 second timeout to stay within Vercel limits
     }
 
     try {

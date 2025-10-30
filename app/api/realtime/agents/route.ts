@@ -45,7 +45,7 @@ async function fetchAgentData(): Promise<AgentUpdate[]> {
       const stats = await client.getAccountInfo()
 
       const openPositions = (stats.positions || []).filter((p) => p.positionAmt !== 0).length
-      const initialCapital = 10000
+      const initialCapital = agent.initial_capital || 50 // Use per-agent initial capital
       const currentValue = stats.equity || 0
       const roi = stats.total_roi !== undefined ? stats.total_roi : ((currentValue - initialCapital) / initialCapital) * 100
 

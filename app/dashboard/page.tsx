@@ -220,6 +220,27 @@ export default function DashboardPage() {
   const [previousMessageCount, setPreviousMessageCount] = useState(0)
 
   useEffect(() => {
+    // Skip real data if testing with mock (set USE_MOCK_DATA=true in .env.local)
+    const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
+    
+    if (useMockData) {
+      console.log("📊 Using mock data for dashboard")
+      fetch("/api/mock/agents")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setAgents(data)
+            const initialChats: Record<string, any[]> = {}
+            data.forEach((agent: Agent) => {
+              initialChats[agent.id] = []
+            })
+            setChatMessages(initialChats)
+          }
+        })
+        .catch((mockErr) => console.error("Failed to fetch mock agents:", mockErr))
+      return
+    }
+
     // Fetch real agents data
     fetch("/api/aster/agents-data")
       .then((res) => {
@@ -301,10 +322,19 @@ export default function DashboardPage() {
 
     // Fetch real account history data for chart (starting from $50 baseline)
     fetch("/api/aster/account-history")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: Failed to fetch account history`)
+        }
+        return res.json()
+      })
       .then((data) => {
-        setAllChartData(data)
-        setChartData(data)
+        if (Array.isArray(data) && data.length > 0) {
+          setAllChartData(data)
+          setChartData(data)
+        } else {
+          throw new Error("Invalid account history data structure")
+        }
       })
       .catch((err) => {
         console.error("Failed to fetch account history:", err)
@@ -312,8 +342,10 @@ export default function DashboardPage() {
         fetch("/api/mock/trades")
           .then((res) => res.json())
           .then((data) => {
-            setAllChartData(data)
-            setChartData(data)
+            if (Array.isArray(data)) {
+              setAllChartData(data)
+              setChartData(data)
+            }
           })
       })
 

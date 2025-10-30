@@ -1,35 +1,61 @@
 /**
  * Redis Cache Client
  * Handles caching of Aster API responses to reduce rate limiting and improve performance
+ * Falls back to no-op if Redis is unavailable (e.g., on Vercel)
  */
 
 import { createClient } from "redis"
 
-type RedisClient = ReturnType<typeof createClient>
+type RedisClient = ReturnType<typeof createClient> | null
 
-let client: RedisClient | null = null
+let client: RedisClient = null
+let connectionAttempted = false
+let connectionFailed = false
 
 /**
  * Get or create Redis client
+ * Returns null if Redis is unavailable (graceful degradation)
  */
 export async function getRedisClient(): Promise<RedisClient> {
+  // If Redis is disabled or connection already failed, return null
+  if (connectionFailed) return null
   if (client) return client
 
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379"
-
-  client = createClient({
-    url: redisUrl,
-  })
-
-  client.on("error", (err) => {
-    console.error("Redis Client Error", err)
-  })
-
-  if (!client.isOpen) {
-    await client.connect()
+  // Skip if no REDIS_URL configured
+  const redisUrl = process.env.REDIS_URL
+  if (!redisUrl) {
+    connectionFailed = true
+    console.log("ℹ️ Redis disabled - caching not available")
+    return null
   }
 
-  return client
+  try {
+    client = createClient({
+      url: redisUrl,
+      socket: {
+        connectTimeout: 3000, // 3 second timeout
+        reconnectStrategy: () => false, // Don't auto-reconnect
+      },
+    })
+
+    client.on("error", (err) => {
+      console.error("Redis Client Error", err)
+      connectionFailed = true
+      client = null
+    })
+
+    if (!client.isOpen) {
+      await client.connect()
+    }
+
+    console.log("✅ Redis connected successfully")
+    return client
+  } catch (error) {
+    connectionFailed = true
+    client = null
+    console.warn("⚠️ Redis connection failed, running without cache:", error instanceof Error ? error.message : error)
+    return null
+  }
 }
 
 /**
@@ -81,12 +107,16 @@ export async function setCache(
   options: CacheOptions = {}
 ): Promise<void> {
   const redis = await getRedisClient()
+  
+  // If Redis not available, silently skip caching
+  if (!redis) return
+
   const ttl = options.ttl || 300 // Default 5 minutes
 
   try {
     await redis.setEx(key, ttl, JSON.stringify(value))
   } catch (error) {
-    console.error(`Error setting cache for ${key}:`, error)
+    console.debug(`Error setting cache for ${key}:`, error)
   }
 }
 
@@ -96,12 +126,15 @@ export async function setCache(
 export async function getCache<T>(key: string): Promise<T | null> {
   const redis = await getRedisClient()
 
+  // If Redis not available, return null (no cached value)
+  if (!redis) return null
+
   try {
     const value = await redis.get(key)
     if (!value) return null
     return JSON.parse(value) as T
   } catch (error) {
-    console.error(`Error getting cache for ${key}:`, error)
+    console.debug(`Error getting cache for ${key}:`, error)
     return null
   }
 }
@@ -112,10 +145,13 @@ export async function getCache<T>(key: string): Promise<T | null> {
 export async function deleteCache(key: string): Promise<void> {
   const redis = await getRedisClient()
 
+  // If Redis not available, silently skip
+  if (!redis) return
+
   try {
     await redis.del(key)
   } catch (error) {
-    console.error(`Error deleting cache for ${key}:`, error)
+    console.debug(`Error deleting cache for ${key}:`, error)
   }
 }
 
@@ -125,13 +161,16 @@ export async function deleteCache(key: string): Promise<void> {
 export async function deleteCacheByPattern(pattern: string): Promise<void> {
   const redis = await getRedisClient()
 
+  // If Redis not available, silently skip
+  if (!redis) return
+
   try {
     const keys = await redis.keys(pattern)
     if (keys.length > 0) {
       await redis.del(keys)
     }
   } catch (error) {
-    console.error(`Error deleting cache pattern ${pattern}:`, error)
+    console.debug(`Error deleting cache pattern ${pattern}:`, error)
   }
 }
 
@@ -141,10 +180,13 @@ export async function deleteCacheByPattern(pattern: string): Promise<void> {
 export async function invalidateAllCache(): Promise<void> {
   const redis = await getRedisClient()
 
+  // If Redis not available, silently skip
+  if (!redis) return
+
   try {
     await redis.flushDb()
   } catch (error) {
-    console.error("Error invalidating all cache:", error)
+    console.debug("Error invalidating all cache:", error)
   }
 }
 
