@@ -51,9 +51,9 @@ export function LeaderboardTable({ agents }: LeaderboardTableProps) {
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="font-medium text-sm">{agent.name}</span>
-                      {agent.id === 'buy_and_hold' && agent.logo && (
+                      {agent.id === 'buy_and_hold' && (
                         <Image
-                          src={agent.logo}
+                          src="https://img.icons8.com/color/96/grok--v2.jpg"
                           alt="Grok"
                           width={16}
                           height={16}

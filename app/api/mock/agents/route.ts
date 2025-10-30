@@ -166,7 +166,7 @@ const agents = [
     color: "#06B6D4",
     description: "Long-term buy and hold strategy for passive investment returns.",
     avatar: "💎",
-    logo: "/placeholder.svg",
+    logo: "https://img.icons8.com/color/96/grok--v2.jpg",
     accountValue: 18234,
     availableCash: 9200.5,
     totalFees: 50.0,

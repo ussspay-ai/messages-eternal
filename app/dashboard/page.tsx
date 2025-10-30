@@ -816,7 +816,7 @@ export default function DashboardPage() {
                       return (
                         <Line
                           key={agent.id}
-                          type="natural"
+                          type="monotone"
                           dataKey={agent.id}
                           stroke={agent.color}
                           strokeWidth={selectedAgent ? 1.25 : 0.75}
