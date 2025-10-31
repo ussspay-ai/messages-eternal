@@ -43,13 +43,22 @@ async function fetchBinancePrices(): Promise<Partial<PriceData>> {
     // Fetch all prices in parallel
     const symbolKeys = Object.keys(SYMBOL_MAP)
     const pricePromises = symbolKeys.map((key) =>
-      fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL_MAP[key]}`)
-        .then((res) => res.json())
+      fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL_MAP[key]}`, {
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Binance API error: ${res.status} ${res.statusText}`)
+          }
+          return res.json()
+        })
         .then((data: BinancePrice) => {
-          prices[key as NumericPriceKey] = parseFloat(data.price)
+          if (data.price) {
+            prices[key as NumericPriceKey] = parseFloat(data.price)
+          }
         })
         .catch((err) => {
-          console.error(`Failed to fetch ${key} price:`, err)
+          console.warn(`Failed to fetch ${key} price:`, err instanceof Error ? err.message : err)
         })
     )
 

@@ -160,6 +160,59 @@ async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
 }
 
 /**
+ * Get agent data from /api/aster/agents-data endpoint
+ * This fetches real account values for all agents
+ */
+async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
+  try {
+    // Call the agents-data endpoint internally
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/aster/agents-data`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      console.warn(`agents-data endpoint returned ${response.status}`)
+      return []
+    }
+
+    const data = await response.json()
+    if (!data.agents || !Array.isArray(data.agents)) {
+      console.warn("Invalid response from agents-data endpoint")
+      return []
+    }
+
+    // Transform agents-data response to LeaderboardAgent format
+    const agents: LeaderboardAgent[] = data.agents.map((agent: any) => ({
+      id: agent.id,
+      name: agent.name,
+      model: agent.model,
+      logo: agent.logo_url,
+      accountValue: agent.account_value || 0,
+      returnPercent: agent.roi || 0,
+      totalPnL: agent.total_pnl || 0,
+      fees: 0, // Not available in agents-data
+      winRate: 0, // Not available in agents-data
+      biggestWin: 0, // Not available in agents-data
+      biggestLoss: 0, // Not available in agents-data
+      sharpe: 0, // Not available in agents-data
+      trades: 0, // Not available in agents-data
+      color: AGENT_COLORS[agent.id] || "#999999",
+      activePositions: agent.open_positions || 0,
+      status: "active" as const,
+      lastUpdate: agent.timestamp || new Date().toISOString(),
+    }))
+
+    console.log(`✅ Fetched ${agents.length} agents from agents-data endpoint`)
+    return agents
+  } catch (error) {
+    console.warn("Error calling agents-data endpoint:", error)
+    return []
+  }
+}
+
+/**
  * Fetch real data from Aster API for all agents
  * Uses agent-specific credentials (matching agent-balances implementation)
  */
@@ -320,10 +373,10 @@ export async function GET(request: NextRequest) {
       // Continue without cache - don't fail if Redis is down
     }
 
-    // If no cache, fetch fresh data from Aster API
+    // If no cache, fetch fresh data from agents-data endpoint
     if (agents.length === 0) {
-      console.log("Fetching fresh leaderboard data from Aster API...")
-      agents = await fetchRealAgentsData()
+      console.log("Fetching fresh leaderboard data from agents-data endpoint...")
+      agents = await getAgentsDataFromEndpoint()
     }
 
     // Sort by account value (descending)
