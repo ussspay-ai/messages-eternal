@@ -380,6 +380,17 @@ export async function GET(request: NextRequest) {
       agents = await getAgentsDataFromEndpoint()
     }
 
+    // If still no data, fall back to direct Aster API fetch
+    if (agents.length === 0) {
+      console.log("⚠️ agents-data endpoint returned no data, falling back to direct Aster API fetch...")
+      agents = await fetchRealAgentsData()
+    }
+
+    // If still no data, log warning but continue with empty array
+    if (agents.length === 0) {
+      console.warn("⚠️ Could not fetch agent data from any source")
+    }
+
     // Sort by account value (descending)
     const sorted = agents.sort((a, b) => b.accountValue - a.accountValue)
 
