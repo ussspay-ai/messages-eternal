@@ -1,13 +1,69 @@
 /**
  * GET /api/aster/trades?agentId=<id>&symbol=<symbol>&limit=<limit>
  * Fetch agent trade history from Aster
+ * Uses Pickaboo-configured trading symbols instead of hardcoded list
  */
 
 import { AsterClient } from "@/lib/aster-client"
 import { getCache, setCache, CACHE_KEYS } from "@/lib/redis-client"
-import { getAgentCredentials } from "@/lib/constants/agents"
-import { PRIMARY_SYMBOLS } from "@/lib/constants/agents"
+import { getAgentCredentials, PRIMARY_SYMBOLS } from "@/lib/constants/agents"
+import { supabase } from "@/lib/supabase-client"
 import { NextRequest, NextResponse } from "next/server"
+
+/**
+ * Get agent's configured trading symbols from Pickaboo
+ * Falls back to PRIMARY_SYMBOLS if not configured in database
+ */
+async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
+  // Check cache first
+  const cacheKey = `agent_symbols:${agentId}`
+  try {
+    const cached = await getCache<string[]>(cacheKey)
+    if (cached) {
+      console.log(`[Trades API] Using cached symbols for ${agentId}: ${cached.join(", ")}`)
+      return cached
+    }
+  } catch (cacheError) {
+    console.warn(`[Trades API] Cache unavailable for agent symbols ${agentId}`)
+  }
+
+  try {
+    // Query Pickaboo configuration if Supabase is available
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("agent_trading_symbols")
+        .select("symbols")
+        .eq("agent_id", agentId)
+        .single()
+
+      if (!error && data && data.symbols) {
+        const symbols = Array.isArray(data.symbols) ? data.symbols : [data.symbols]
+        // Convert base symbols to USDT pairs if needed
+        const pairs = symbols.map((s: string) => s.endsWith("USDT") ? s : `${s}USDT`)
+        
+        // Try to cache for 1 hour
+        try {
+          await setCache(cacheKey, pairs, { ttl: 3600 })
+        } catch (cacheError) {
+          console.warn("[Trades API] Could not cache agent symbols")
+        }
+        console.log(`[Trades API] ✅ Fetched configured symbols from Pickaboo for ${agentId}: ${pairs.join(", ")}`)
+        return pairs
+      }
+    }
+  } catch (e) {
+    console.debug(`[Trades API] Could not fetch Pickaboo config for ${agentId}:`, e)
+  }
+
+  // Fallback to default symbols
+  try {
+    await setCache(cacheKey, PRIMARY_SYMBOLS, { ttl: 3600 })
+  } catch (cacheError) {
+    console.warn("[Trades API] Could not cache default symbols")
+  }
+  console.log(`[Trades API] ⚠️ Using default symbols for ${agentId}: ${PRIMARY_SYMBOLS.join(", ")}`)
+  return PRIMARY_SYMBOLS
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,9 +84,9 @@ export async function GET(request: NextRequest) {
     // Create Aster client
     const client = new AsterClient({
       agentId,
-      signer: credentials.signer, // Use agent's wallet address, not API key
-      apiSecret: undefined, // Don't use agent private key for REST API
-      userAddress: credentials.signer, // Agent's wallet for REST API calls
+      signer: credentials.signer,
+      apiSecret: undefined,
+      userAddress: credentials.signer,
       userApiKey: credentials.userApiKey,
       userApiSecret: credentials.userApiSecret,
     })
@@ -44,8 +100,7 @@ export async function GET(request: NextRequest) {
           return NextResponse.json(cached)
         }
       } catch (cacheError) {
-        console.warn("Cache unavailable for trades, proceeding without cache:", cacheError)
-        // Continue without cache
+        console.warn("[Trades API] Cache unavailable for trades")
       }
 
       const tradesData = await client.getTrades(symbol, limit)
@@ -53,31 +108,39 @@ export async function GET(request: NextRequest) {
       try {
         await setCache(cacheKey, trades, { ttl: 10 })
       } catch (cacheError) {
-        console.warn("Could not cache trades:", cacheError)
+        console.warn("[Trades API] Could not cache trades")
       }
       return NextResponse.json(trades)
     }
 
-    // Otherwise fetch trades from all primary symbols
+    // Fetch configured trading symbols from Pickaboo (instead of hardcoded PRIMARY_SYMBOLS)
+    const tradingSymbols = await getAgentTradingSymbols(agentId)
+    console.log(`[Trades API] 📊 Fetching trades for ${agentId} from symbols: ${tradingSymbols.join(", ")}`)
+
     const allTrades: any[] = []
 
-    for (const sym of PRIMARY_SYMBOLS) {
+    // Fetch trades from ALL configured symbols
+    for (const sym of tradingSymbols) {
       try {
         const tradesData = await client.getTrades(sym, 50)
         const trades = tradesData.trades || []
+        if (trades.length > 0) {
+          console.log(`[Trades API] Found ${trades.length} trades for ${sym}`)
+        }
         allTrades.push(...trades)
       } catch (error) {
         // Symbol might not have trades, continue
-        console.debug(`No trades found for ${sym}`)
+        console.debug(`[Trades API] No trades found for ${sym}:`, error instanceof Error ? error.message : error)
       }
     }
 
     // Sort by time descending
     allTrades.sort((a, b) => b.time - a.time)
 
+    console.log(`[Trades API] ✅ Returning ${allTrades.slice(0, limit).length} trades (limited to ${limit})`)
     return NextResponse.json(allTrades.slice(0, limit))
   } catch (error) {
-    console.error("Error fetching trades:", error)
+    console.error("[Trades API] Error fetching trades:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch trades" },
       { status: 500 }

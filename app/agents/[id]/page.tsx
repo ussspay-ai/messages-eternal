@@ -146,11 +146,12 @@ export default function AgentDetailPage() {
         })
 
       // Fetch live trades for the agent (25 trades instead of 20)
+      // Show all trades, including breakeven trades (realizedPnl === 0)
       fetch(`/api/aster/trades?agentId=${params.id}&limit=25`)
         .then((res) => res.json())
         .then((asterTrades) => {
           const trades: Trade[] = asterTrades
-            .filter((t: any) => t.realizedPnl !== 0)
+            // Show ALL trades, not just profitable ones
             .map((t: any) => ({
               id: t.id,
               side: t.side === "BUY" ? "LONG" : "SHORT",
