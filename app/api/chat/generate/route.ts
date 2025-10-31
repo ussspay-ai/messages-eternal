@@ -55,7 +55,9 @@ function removeOldMessages(messages: any[], maxMessages: number = 100): any[] {
  */
 async function fetchAgentData(): Promise<Agent[]> {
   try {
-    const response = await fetch("http://localhost:3000/api/aster/agents-data")
+    // Use environment-aware URL for server-side fetch
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`
+    const response = await fetch(`${baseUrl}/api/aster/agents-data`)
     const data = await response.json()
 
     if (data.agents && Array.isArray(data.agents)) {

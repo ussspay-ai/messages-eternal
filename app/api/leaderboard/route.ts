@@ -166,7 +166,8 @@ async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
 async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
   try {
     // Call the agents-data endpoint internally
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/aster/agents-data`, {
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`
+    const response = await fetch(`${baseUrl}/api/aster/agents-data`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
