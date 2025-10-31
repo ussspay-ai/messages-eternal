@@ -4,7 +4,7 @@
   },
   "deploy": {
     "startCommand": "npm run start:all:prod",
-    "restartPolicyMaxRetries": -1,
+    "restartPolicyMaxRetries": 5,
     "restartPolicyWindowMs": 60000
   }
 }
