@@ -26,7 +26,7 @@ import {
   type AgentDecisionLog,
   type ExitPlan,
   type AgentChatMessage
-} from "./lib/supabase-client.js"
+} from "./lib/supabase-client.ts"
 
 export interface AgentConfig {
   agentId: string // Agent ID (e.g., "Claude", "GPT", "Gemini")
@@ -276,8 +276,8 @@ export abstract class BaseStrategy {
    */
   protected async logTrade(signal: TradeSignal, orderId?: string): Promise<void> {
     try {
-      let executedPrice = signal.price || 0
-      let executedQuantity = signal.quantity
+      let executedPrice = Number(signal.price) || 0
+      let executedQuantity = Number(signal.quantity)
       let orderStatus: 'open' | 'closed' | 'cancelled' | 'error' = 'open'
 
       // POST-TRADE RECONCILIATION: Fetch actual execution details from Aster
@@ -286,10 +286,14 @@ export abstract class BaseStrategy {
           const orderDetails = await this.client.getOrder(this.config.symbol, orderId)
           
           // Use actual execution data, not intended data
-          executedPrice = orderDetails.executedQty > 0 
-            ? orderDetails.cumQuote / orderDetails.executedQty 
-            : orderDetails.price
-          executedQuantity = orderDetails.executedQty
+          const executedQty = Number(orderDetails.executedQty)
+          const cumQuote = Number(orderDetails.cumQuote)
+          const price = Number(orderDetails.price)
+          
+          executedPrice = executedQty > 0 
+            ? cumQuote / executedQty 
+            : price
+          executedQuantity = executedQty
           
           // Map Aster status to our status (open | closed | cancelled | error)
           if (orderDetails.status === 'FILLED') {
@@ -322,10 +326,10 @@ export abstract class BaseStrategy {
         symbol: this.config.symbol,
         side: signal.action as 'BUY' | 'SELL',
         quantity: executedQuantity,
-        entry_price: signal.price || 0,
+        entry_price: Number(signal.price) || 0,
         executed_price: executedPrice,
-        stop_loss: signal.stopLoss,
-        take_profit: signal.takeProfit,
+        stop_loss: Number(signal.stopLoss) || 0,
+        take_profit: Number(signal.takeProfit) || 0,
         reason: signal.reason,
         confidence: signal.confidence,
         status: orderStatus,
@@ -348,8 +352,8 @@ export abstract class BaseStrategy {
           side,
           position_size: executedQuantity,
           entry_price: executedPrice,
-          take_profit: signal.takeProfit || 0,
-          stop_loss: signal.stopLoss || 0,
+          take_profit: Number(signal.takeProfit) || 0,
+          stop_loss: Number(signal.stopLoss) || 0,
           confidence: signal.confidence,
           reasoning: signal.reason,
         }
