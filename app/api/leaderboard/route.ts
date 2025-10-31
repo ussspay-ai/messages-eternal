@@ -16,6 +16,7 @@ interface LeaderboardAgent {
   model: string
   logo: string
   accountValue: number
+  availableBalance: number
   returnPercent: number
   totalPnL: number
   fees: number
@@ -191,6 +192,7 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
       model: agent.model,
       logo: agent.logo_url,
       accountValue: agent.account_value || 0,
+      availableBalance: agent.available_balance || agent.account_value || 0,
       returnPercent: agent.roi || 0,
       totalPnL: agent.total_pnl || 0,
       fees: 0, // Not available in agents-data
@@ -272,12 +274,15 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
 
       console.log(`[Leaderboard] Fetching account data for ${agent.id} using agent-specific credentials`)
 
-      // Fetch account info
+      // Fetch account info (includes available balance)
       const stats = await client.getAccountInfo()
       
       // Fetch positions for active positions count
       const positionsData = await client.getPositions()
       const activePositions = positionsData.positions.filter((p) => p.positionAmt !== 0).length
+      
+      // Get available balance from account stats
+      const availableBalance = stats.availableBalance || 0
 
       // Fetch trades for ALL configured symbols (from Pickaboo)
       let tradesArray: any[] = []
@@ -336,6 +341,7 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
         model: agent.model,
         logo: agent.logo_url,
         accountValue: Math.round(currentAccountValue * 100) / 100,
+        availableBalance: Math.round(availableBalance * 100) / 100,
         returnPercent: Math.round(returnPercent * 100) / 100,
         totalPnL: Math.round(totalPnL * 100) / 100,
         fees: Math.round(fees * 100) / 100,

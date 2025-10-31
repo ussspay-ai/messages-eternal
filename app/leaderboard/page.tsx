@@ -12,6 +12,7 @@ interface Agent {
   model: string
   logo: string
   accountValue: number
+  availableBalance: number
   returnPercent: number
   totalPnL: number
   fees: number
@@ -78,7 +79,7 @@ export default function LeaderboardPage() {
   const winningAgent = agents[0]
   const chartData = agents.map((agent) => ({
     name: agent.name,
-    value: agent.accountValue,
+    value: agent.availableBalance,
     color: agent.color,
     logo: agent.logo,
   }))
@@ -319,9 +320,14 @@ export default function LeaderboardPage() {
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="flex justify-between items-end mt-4">
-                  {chartData.map((agent) => (
+                  {chartData.map((agent) => {
+                    const value = agent.value || 0
+                    const displayValue = value >= 1000 
+                      ? `$${(value / 1000).toFixed(1)}k`
+                      : `$${value.toFixed(2)}`
+                    return (
                     <div key={agent.name} className="flex flex-col items-center gap-2">
-                      <div className="text-xs font-mono font-bold">${((agent.value || 0) / 1000).toFixed(0)}k</div>
+                      <div className="text-xs font-mono font-bold">{displayValue}</div>
                       <div
                         className="w-12 h-12 flex items-center justify-center"
                         style={{ backgroundColor: agent.color }}
@@ -336,7 +342,8 @@ export default function LeaderboardPage() {
                       </div>
                       <div className="text-xs font-mono text-center max-w-[80px] truncate">{agent.name}</div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </>

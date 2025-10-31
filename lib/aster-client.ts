@@ -41,6 +41,7 @@ interface AsterStats {
   total_pnl: number
   total_roi: number
   positions: AsterPosition[]
+  availableBalance: number
 
   // From trades endpoint (optional)
   win_rate?: number
@@ -275,6 +276,7 @@ export class AsterClient {
     const totalWalletBalance = toNumber(account.totalWalletBalance)
     const totalUnrealizedProfit = toNumber(account.totalUnrealizedProfit || 0)
     const totalCrossCollateral = toNumber(account.totalCrossCollateral || 0)
+    const availableBalance = toNumber(account.availableBalance || totalWalletBalance)
     
     // Equity is the total wallet balance + unrealized profits (what Asterdex shows as account equity)
     const equity = totalWalletBalance + totalUnrealizedProfit
@@ -283,6 +285,7 @@ export class AsterClient {
       totalWalletBalance,
       totalUnrealizedProfit,
       totalCrossCollateral,
+      availableBalance,
       calculatedEquity: equity,
       positionsCount: positions.length,
     })
@@ -293,6 +296,7 @@ export class AsterClient {
       total_pnl: totalUnrealizedProfit + totalCrossCollateral,
       total_roi: totalWalletBalance > 0 ? (totalUnrealizedProfit / totalWalletBalance) * 100 : 0,
       positions,
+      availableBalance,
     }
   }
 
