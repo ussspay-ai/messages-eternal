@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start:all": "node --loader ts-node/esm start-all.ts",
+    "start:all:prod": "node --loader ts-node/esm start-all-production.ts",
     "start:agent1": "node --loader ts-node/esm agents/agent1-claude.ts",
     "start:agent2": "node --loader ts-node/esm agents/agent2-gpt4.ts",
     "start:agent3": "node --loader ts-node/esm agents/agent3-gemini.ts",
@@ -26,6 +27,7 @@
   "author": "NOF1",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.43.0",
     "dotenv": "^16.0.3",
     "ethers": "^6.7.1"
   },
