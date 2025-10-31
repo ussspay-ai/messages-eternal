@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json* pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -28,7 +28,7 @@ RUN apk add --no-cache dumb-init
 COPY package.json package-lock.json* ./
 
 # Install only production dependencies
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Copy built app from builder
 COPY --from=builder /app/.next ./.next
