@@ -319,7 +319,7 @@ export default function LeaderboardPage() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-                <div className="flex justify-between items-end mt-4">
+                <div className="grid grid-cols-5 gap-2 mt-4">
                   {chartData.map((agent) => {
                     const value = agent.value || 0
                     const displayValue = value >= 1000 
