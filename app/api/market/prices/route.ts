@@ -45,7 +45,7 @@ const COINGECKO_IDS: Record<NumericPriceKey, string> = {
   SOL: "solana",
   BNB: "binancecoin",
   DOGE: "dogecoin",
-  ASTER: "aster", // CoinGecko ID for Aster
+  ASTER: "aster-2", // CoinGecko ID for Aster (https://coingecko.com/en/coins/aster-2)
 }
 
 // Map symbol names to Binance trading pairs
