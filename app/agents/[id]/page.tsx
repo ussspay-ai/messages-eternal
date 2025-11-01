@@ -636,15 +636,15 @@ export default function AgentDetailPage() {
                         {trade.coin}
                       </span>
                     </td>
-                    <td className="py-2 px-2">${trade.entryPrice.toLocaleString()}</td>
-                    <td className="py-2 px-2">${trade.exitPrice.toLocaleString()}</td>
-                    <td className="py-2 px-2">{trade.quantity}</td>
-                    <td className="py-2 px-2">{trade.holdingTime}</td>
-                    <td className="py-2 px-2">${trade.notionalEntry.toLocaleString()}</td>
-                    <td className="py-2 px-2">${trade.notionalExit.toLocaleString()}</td>
-                    <td className="py-2 px-2">${trade.totalFees.toFixed(2)}</td>
-                    <td className={`py-2 px-2 font-bold ${trade.netPnl < 0 ? "text-red-600" : "text-green-600"}`}>
-                      ${trade.netPnl.toFixed(2)}
+                    <td className="py-2 px-2">${(trade.entryPrice ?? 0).toLocaleString()}</td>
+                    <td className="py-2 px-2">${(trade.exitPrice ?? 0).toLocaleString()}</td>
+                    <td className="py-2 px-2">{trade.quantity ?? 0}</td>
+                    <td className="py-2 px-2">{trade.holdingTime ?? "-"}</td>
+                    <td className="py-2 px-2">${trade.notionalEntry?.toLocaleString() || "0"}</td>
+                    <td className="py-2 px-2">${trade.notionalExit?.toLocaleString() || "0"}</td>
+                    <td className="py-2 px-2">${(trade.totalFees ?? 0).toFixed(2)}</td>
+                    <td className={`py-2 px-2 font-bold ${(trade.netPnl ?? 0) < 0 ? "text-red-600" : "text-green-600"}`}>
+                      ${(trade.netPnl ?? 0).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -697,47 +697,47 @@ export default function AgentDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">ENTRY PRICE</div>
-                  <div className="text-xs font-bold">${selectedTrade.entryPrice.toLocaleString()}</div>
+                  <div className="text-xs font-bold">${(selectedTrade.entryPrice ?? 0).toLocaleString()}</div>
                 </div>
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">EXIT PRICE</div>
-                  <div className="text-xs font-bold">${selectedTrade.exitPrice.toLocaleString()}</div>
+                  <div className="text-xs font-bold">${(selectedTrade.exitPrice ?? 0).toLocaleString()}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">QUANTITY</div>
-                  <div className="font-bold">{selectedTrade.quantity}</div>
+                  <div className="font-bold">{selectedTrade.quantity ?? 0}</div>
                 </div>
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">HOLDING TIME</div>
-                  <div className="font-bold">{selectedTrade.holdingTime}</div>
+                  <div className="font-bold">{selectedTrade.holdingTime ?? "-"}</div>
                 </div>
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">TOTAL FEES</div>
-                  <div className="font-bold">${selectedTrade.totalFees.toFixed(2)}</div>
+                  <div className="font-bold">${(selectedTrade.totalFees ?? 0).toFixed(2)}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">NOTIONAL ENTRY</div>
-                  <div className="font-bold">${selectedTrade.notionalEntry.toLocaleString()}</div>
+                  <div className="font-bold">${(selectedTrade.notionalEntry ?? 0).toLocaleString()}</div>
                 </div>
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">NOTIONAL EXIT</div>
-                  <div className="font-bold">${selectedTrade.notionalExit.toLocaleString()}</div>
+                  <div className="font-bold">${(selectedTrade.notionalExit ?? 0).toLocaleString()}</div>
                 </div>
               </div>
 
               <div className="bg-gray-50 border-2 border-black p-4">
                 <div className="text-xs text-gray-600 mb-1">NET P&L</div>
-                <div className={`text-xs font-bold ${selectedTrade.netPnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {selectedTrade.netPnl >= 0 ? "+" : ""}${selectedTrade.netPnl.toFixed(2)}
+                <div className={`text-xs font-bold ${(selectedTrade.netPnl ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {(selectedTrade.netPnl ?? 0) >= 0 ? "+" : ""}${(selectedTrade.netPnl ?? 0).toFixed(2)}
                 </div>
                 <div className="text-xs text-gray-600 mt-2">
-                  Return: {((selectedTrade.netPnl / selectedTrade.notionalEntry) * 100).toFixed(2)}%
+                  Return: {(((selectedTrade.netPnl ?? 0) / (selectedTrade.notionalEntry ?? 1)) * 100).toFixed(2)}%
                 </div>
               </div>
 
