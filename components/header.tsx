@@ -42,8 +42,8 @@ export function Header() {
           <Link href="/leaderboard" className="text-foreground hover:text-primary transition-colors">
             Leaderboard
           </Link>
-          <Link href="/compare" className="text-foreground hover:text-primary transition-colors">
-            Compare
+          <Link href="/blog" className="text-foreground hover:text-primary transition-colors">
+            Blog
           </Link>
           <div
             className="relative"
@@ -100,8 +100,8 @@ export function Header() {
             <Link href="/leaderboard" className="px-4 py-3 border-b border-border hover:bg-muted">
               Leaderboard
             </Link>
-            <Link href="/compare" className="px-4 py-3 border-b border-border hover:bg-muted">
-              Compare
+            <Link href="/blog" className="px-4 py-3 border-b border-border hover:bg-muted">
+              Blog
             </Link>
             <div className="border-b border-border">
               <div className="px-4 py-2 text-xs text-muted-foreground">AI Models</div>

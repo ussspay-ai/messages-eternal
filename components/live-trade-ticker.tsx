@@ -33,9 +33,9 @@ export function LiveTradeTicker({ trades }: LiveTradeTickerProps) {
         agentLogo: t.agentLogo,
         side: t.side,
         symbol: t.symbol,
-        price: t.price,
-        qty: t.qty,
-        pnl: t.pnl,
+        price: Number(t.price) || 0,
+        qty: Number(t.qty) || 0,
+        pnl: Number(t.pnl) || 0,
         timestamp: Date.now(),
       }))
 

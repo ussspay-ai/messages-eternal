@@ -7,6 +7,7 @@ import { Header } from "@/components/header"
 import { TokenActivation } from "@/components/token-activation"
 import { TokenIcon } from "@/components/token-icon"
 import { LiveTradeTicker } from "@/components/live-trade-ticker"
+import { CompletedTradesList } from "@/components/completed-trades-list"
 import { ModelChatView } from "@/components/model-chat-view"
 
 interface Agent {
@@ -218,6 +219,7 @@ export default function DashboardPage() {
   const [xAxisFormatType, setXAxisFormatType] = useState<"time" | "date">("time")
   const [newMessageCount, setNewMessageCount] = useState(0)
   const [previousMessageCount, setPreviousMessageCount] = useState(0)
+  const [isLoadingPositions, setIsLoadingPositions] = useState(true)
 
   useEffect(() => {
     // Skip real data if testing with mock (set USE_MOCK_DATA=true in .env.local)
@@ -358,81 +360,151 @@ export default function DashboardPage() {
 
       for (const agent of agents) {
         try {
-          // Fetch positions
-          const posRes = await fetch(`/api/aster/positions?agentId=${agent.id}`)
+          // Fetch positions - try real API first, fallback to mock
+          console.log(`\n🔄 [Dashboard] Fetching positions for ${agent.name} (${agent.id})...`)
+          let posRes = await fetch(`/api/aster/positions?agentId=${agent.id}`)
+          let positions = []
+          
           if (posRes.ok) {
-            const positions = await posRes.json()
-            
-            // Fetch exit plans for this agent
-            const exitPlansRes = await fetch(`/api/aster/exit-plans?agentId=${agent.id}`)
-            const exitPlans = exitPlansRes.ok ? await exitPlansRes.json() : []
-            
-            // Create a map of exit plans by symbol and side for quick lookup
-            const exitPlanMap: Record<string, any> = {}
-            exitPlans.forEach((plan: any) => {
-              const key = `${plan.symbol}:${plan.side}`
-              exitPlanMap[key] = plan
+            positions = await posRes.json()
+            console.log(`✅ [Dashboard] Fetched positions for ${agent.name}:`, {
+              count: positions.length,
+              details: positions,
+              firstPosition: positions[0] ? Object.keys(positions[0]) : 'N/A',
             })
-            
-            // Convert AsterPosition to our format with real exit plans
-            positionsMap[agent.id] = positions
-              .filter((p: any) => p.positionAmt !== 0)
-              .map((p: any) => {
-                const side = p.positionAmt > 0 ? "LONG" : "SHORT"
-                const planKey = `${p.symbol}:${side}`
-                const exitPlan = exitPlanMap[planKey]
-                
-                // Format exit plan display: "TP: $X.XX / SL: $X.XX"
-                let exitPlanDisplay = "VIEW"
-                if (exitPlan) {
-                  const tp = exitPlan.take_profit || exitPlan.takeProfit || 0
-                  const sl = exitPlan.stop_loss || exitPlan.stopLoss || 0
-                  if (tp > 0 && sl > 0) {
-                    exitPlanDisplay = `TP: $${tp.toFixed(2)} / SL: $${sl.toFixed(2)}`
-                  } else if (tp > 0) {
-                    exitPlanDisplay = `TP: $${tp.toFixed(2)}`
-                  } else if (sl > 0) {
-                    exitPlanDisplay = `SL: $${sl.toFixed(2)}`
-                  }
-                }
-                
-                return {
-                  side,
-                  coin: p.symbol.replace("USDT", ""),
-                  leverage: `${p.leverage}X`,
-                  notional: Math.abs(p.positionAmt * p.markPrice),
-                  exitPlan: exitPlanDisplay,
-                  unrealizedPnl: p.unrealizedProfit,
-                  // Include raw values for hover tooltips if needed
-                  _exitPlanData: exitPlan,
-                }
+            if (positions[0]) {
+              console.log(`📌 [Dashboard] First position full data:`, JSON.stringify(positions[0], null, 2))
+            }
+          } else {
+            const errorData = await posRes.json().catch(() => ({}))
+            console.error(`❌ [Dashboard] Positions API failed for ${agent.id}:`, {
+              status: posRes.status,
+              statusText: posRes.statusText,
+              error: errorData.error,
+            })
+            // Fallback to mock positions if real API fails
+            console.log(`📋 [Dashboard] Trying mock data for ${agent.id}...`)
+            const mockRes = await fetch(`/api/mock/positions?agentId=${agent.id}`)
+            if (mockRes.ok) {
+              positions = await mockRes.json()
+              console.log(`✅ [Dashboard] Using mock positions for ${agent.id}:`, positions)
+            }
+          }
+          
+          if (positions && positions.length > 0) {
+            try {
+              // Fetch exit plans for this agent
+              const exitPlansRes = await fetch(`/api/aster/exit-plans?agentId=${agent.id}`)
+              const exitPlans = exitPlansRes.ok ? await exitPlansRes.json() : []
+              
+              // Create a map of exit plans by symbol and side for quick lookup
+              const exitPlanMap: Record<string, any> = {}
+              exitPlans.forEach((plan: any) => {
+                const key = `${plan.symbol}:${plan.side}`
+                exitPlanMap[key] = plan
               })
+              
+              // Convert AsterPosition to our format with real exit plans
+       const filtered = positions.filter((p: any) => p.positionAmt !== 0)
+              console.log(`📍 [Dashboard] Filtered positions for ${agent.name}: ${filtered.length} total`)
+              
+              positionsMap[agent.id] = filtered
+                       .map((p: any) => {
+                  try {
+                    const side = p.positionAmt > 0 ? "LONG" : "SHORT"
+                    const planKey = `${p.symbol}:${side}`
+                    const exitPlan = exitPlanMap[planKey]
+                    
+                    // Format exit plan display: "TP: $X.XX / SL: $X.XX"
+                    let exitPlanDisplay = "VIEW"
+                    if (exitPlan) {
+                      const tp = exitPlan.take_profit || exitPlan.takeProfit || 0
+                      const sl = exitPlan.stop_loss || exitPlan.stopLoss || 0
+                      if (tp > 0 && sl > 0) {
+                        exitPlanDisplay = `TP: $${tp.toFixed(2)} / SL: $${sl.toFixed(2)}`
+                      } else if (tp > 0) {
+                        exitPlanDisplay = `TP: $${tp.toFixed(2)}`
+                      } else if (sl > 0) {
+                        exitPlanDisplay = `SL: $${sl.toFixed(2)}`
+                      }
+                    }
+                    
+                    const notionalValue = Math.abs((p.positionAmt || 0) * (p.markPrice || 0))
+                    const transformed = {
+                      side,
+                      coin: (p.symbol || "").replace("USDT", ""),
+                      leverage: `${p.leverage || 1}X`,
+                      notional: notionalValue,
+                      exitPlan: exitPlanDisplay,
+                      unrealizedPnl: p.unrealizedProfit || 0,
+                      // Include raw values for hover tooltips if needed
+                      _exitPlanData: exitPlan,
+                    }
+                    console.log(`  ├─ Transformed: ${p.symbol} ${side} ${p.positionAmt} @ ${p.markPrice} leverage=${p.leverage}X notional=${transformed.notional}`)
+                    return transformed
+                  } catch (posError) {
+                    console.error(`  ❌ Error transforming position for ${agent.name}:`, posError, "Position:", p)
+                    throw posError
+                  }
+                })
+              console.log(`✅ [Dashboard] Successfully transformed ${positionsMap[agent.id].length} positions for ${agent.name}`)
+            } catch (transformError) {
+              console.error(`❌ [Dashboard] Error transforming positions for ${agent.name}:`, transformError)
+              positionsMap[agent.id] = []
+            }
+          } else {
+            // Initialize empty positions array if no positions found
+            console.log(`ℹ️ [Dashboard] No positions found for ${agent.name} (count=${positions?.length})`)
+            positionsMap[agent.id] = []
           }
 
           // Fetch trades
-          const tradesRes = await fetch(`/api/aster/trades?agentId=${agent.id}&limit=5`)
+          const tradesRes = await fetch(`/api/aster/trades?agentId=${agent.id}&limit=30`)
           if (tradesRes.ok) {
             const agentTrades = await tradesRes.json()
             trades.push(
-              ...agentTrades.slice(0, 2).map((t: any) => ({
+              ...agentTrades.slice(0, 20).map((t: any) => ({
                 agentId: agent.id,
                 agentName: agent.name,
+                model: agent.model,
                 agentLogo: agent.logo,
                 side: t.side === "BUY" ? "LONG" : "SHORT",
-                symbol: t.symbol,
-                price: t.price,
-                qty: t.qty,
-                pnl: t.realizedPnl,
+                symbol: t.symbol || "UNKNOWN",
+                price: Number(t.price) || 0,
+                entryPrice: Number(t.entryPrice) || Number(t.price) || 0,
+                exitPrice: Number(t.exitPrice) || Number(t.price) || 0,
+                qty: Number(t.qty) || 0,
+                pnl: Number(t.realizedPnl) || 0,
+                realizedPnl: Number(t.realizedPnl) || 0,
+                timestamp: t.time || t.closedAt || t.timestamp || Date.now(),
+                openTime: t.time || t.openedAt || t.openTime || Date.now(),
+                closeTime: t.time || t.closedAt || t.closeTime || Date.now(),
               }))
             )
           }
         } catch (error) {
-          console.debug(`Failed to fetch live data for ${agent.id}:`, error)
+          console.error(`❌ Exception fetching live data for ${agent.id}:`, error)
         }
       }
 
+      const positionsSummary = Object.keys(positionsMap).map(id => ({
+        agentId: id,
+        positionCount: positionsMap[id].length,
+        positions: positionsMap[id],
+      }))
+      
+      console.log(`\n✅ [Dashboard] FINAL POSITIONS MAP - All agents:`)
+      console.table(positionsSummary.map(s => ({
+        'Agent ID': s.agentId,
+        'Position Count': s.positionCount,
+      })))
+      console.log(`[Dashboard] Complete positionsMap:`, positionsMap)
+      
       setLivePositions(positionsMap)
       setLiveTrades(trades)
+      setIsLoadingPositions(false)
+      
+      console.log(`✅ [Dashboard] State updated: livePositions set with ${Object.keys(positionsMap).length} agents`)
     }
 
     fetchLiveData()
@@ -496,6 +568,140 @@ export default function DashboardPage() {
       clearInterval(chartRefreshInterval)
     }
   }, [])
+
+  // Fetch positions when agents are loaded
+  useEffect(() => {
+    if (agents.length === 0) {
+      console.log("[Dashboard] Agents not yet loaded, skipping initial position fetch")
+      return
+    }
+
+    console.log(`[Dashboard] Agents loaded (${agents.length} agents), fetching positions immediately...`)
+
+    const positionsMap: Record<string, any[]> = {}
+    const trades: any[] = []
+
+    const fetchPositionsForAgents = async () => {
+      for (const agent of agents) {
+        try {
+          console.log(`\n🔄 [Dashboard] Initial fetch - Fetching positions for ${agent.name} (${agent.id})...`)
+          let posRes = await fetch(`/api/aster/positions?agentId=${agent.id}`)
+          let positions = []
+          
+          if (posRes.ok) {
+            positions = await posRes.json()
+            console.log(`✅ [Dashboard] Initial fetch - Fetched positions for ${agent.name}:`, {
+              count: positions.length,
+              details: positions,
+            })
+          } else {
+            const errorData = await posRes.json().catch(() => ({}))
+            console.error(`❌ [Dashboard] Initial fetch - Positions API failed for ${agent.id}:`, errorData.error)
+            // Fallback to mock positions if real API fails
+            const mockRes = await fetch(`/api/mock/positions?agentId=${agent.id}`)
+            if (mockRes.ok) {
+              positions = await mockRes.json()
+              console.log(`✅ [Dashboard] Initial fetch - Using mock positions for ${agent.id}`)
+            }
+          }
+          
+          if (positions && positions.length > 0) {
+            try {
+              // Fetch exit plans for this agent
+              const exitPlansRes = await fetch(`/api/aster/exit-plans?agentId=${agent.id}`)
+              const exitPlans = exitPlansRes.ok ? await exitPlansRes.json() : []
+              
+              // Create a map of exit plans by symbol and side for quick lookup
+              const exitPlanMap: Record<string, any> = {}
+              exitPlans.forEach((plan: any) => {
+                const key = `${plan.symbol}:${plan.side}`
+                exitPlanMap[key] = plan
+              })
+              
+              // Convert AsterPosition to our format with real exit plans
+              const filtered = positions.filter((p: any) => p.positionAmt !== 0)
+              
+              positionsMap[agent.id] = filtered
+                .map((p: any) => {
+                  try {
+                    const side = p.positionAmt > 0 ? "LONG" : "SHORT"
+                    const planKey = `${p.symbol}:${side}`
+                    const exitPlan = exitPlanMap[planKey]
+                    
+                    let exitPlanDisplay = "VIEW"
+                    if (exitPlan) {
+                      const tp = exitPlan.take_profit || exitPlan.takeProfit || 0
+                      const sl = exitPlan.stop_loss || exitPlan.stopLoss || 0
+                      if (tp > 0 && sl > 0) {
+                        exitPlanDisplay = `TP: $${tp.toFixed(2)} / SL: $${sl.toFixed(2)}`
+                      } else if (tp > 0) {
+                        exitPlanDisplay = `TP: $${tp.toFixed(2)}`
+                      } else if (sl > 0) {
+                        exitPlanDisplay = `SL: $${sl.toFixed(2)}`
+                      }
+                    }
+                    
+                    const notionalValue = Math.abs((p.positionAmt || 0) * (p.markPrice || 0))
+                    return {
+                      side,
+                      coin: (p.symbol || "").replace("USDT", ""),
+                      leverage: `${p.leverage || 1}X`,
+                      notional: notionalValue,
+                      exitPlan: exitPlanDisplay,
+                      unrealizedPnl: p.unrealizedProfit || 0,
+                      _exitPlanData: exitPlan,
+                    }
+                  } catch (posError) {
+                    console.error(`  ❌ Initial fetch - Error transforming position for ${agent.name}:`, posError)
+                    throw posError
+                  }
+                })
+              console.log(`✅ [Dashboard] Initial fetch - Successfully transformed ${positionsMap[agent.id].length} positions for ${agent.name}`)
+            } catch (transformError) {
+              console.error(`❌ [Dashboard] Initial fetch - Error transforming positions for ${agent.name}:`, transformError)
+              positionsMap[agent.id] = []
+            }
+          } else {
+            positionsMap[agent.id] = []
+          }
+
+          // Fetch trades
+          const tradesRes = await fetch(`/api/aster/trades?agentId=${agent.id}&limit=30`)
+          if (tradesRes.ok) {
+            const agentTrades = await tradesRes.json()
+            trades.push(
+              ...agentTrades.slice(0, 20).map((t: any) => ({
+                agentId: agent.id,
+                agentName: agent.name,
+                model: agent.model,
+                agentLogo: agent.logo,
+                side: t.side === "BUY" ? "LONG" : "SHORT",
+                symbol: t.symbol || "UNKNOWN",
+                price: Number(t.price) || 0,
+                entryPrice: Number(t.entryPrice) || Number(t.price) || 0,
+                exitPrice: Number(t.exitPrice) || Number(t.price) || 0,
+                qty: Number(t.qty) || 0,
+                pnl: Number(t.realizedPnl) || 0,
+                realizedPnl: Number(t.realizedPnl) || 0,
+                timestamp: t.time || t.closedAt || t.timestamp || Date.now(),
+                openTime: t.time || t.openedAt || t.openTime || Date.now(),
+                closeTime: t.time || t.closedAt || t.closeTime || Date.now(),
+              }))
+            )
+          }
+        } catch (error) {
+          console.error(`❌ [Dashboard] Initial fetch exception for ${agent.id}:`, error)
+        }
+      }
+
+      setLivePositions(positionsMap)
+      setLiveTrades(trades)
+      setIsLoadingPositions(false)
+      console.log(`✅ [Dashboard] Initial fetch complete - livePositions set with ${Object.keys(positionsMap).length} agents`)
+    }
+
+    fetchPositionsForAgents()
+  }, [agents])
 
   // Chat generation effect - runs every 60 seconds to generate agent responses with real trading symbol
   useEffect(() => {
@@ -960,6 +1166,29 @@ export default function DashboardPage() {
           <div className="flex-1 overflow-auto p-3 md:p-4 min-h-0">
             {activeTab === "POSITIONS" && (
               <div className="space-y-4">
+                {(() => {
+                  const positionSummary = Object.entries(mockPositions).reduce((acc, [id, pos]) => {
+                    acc[id] = pos.length
+                    return acc
+                  }, {} as Record<string, number>)
+                  const totalPositions = Object.values(positionSummary).reduce((sum, count) => sum + count, 0)
+                  
+                  console.log(`\n📊 [Dashboard] POSITIONS TAB RENDERED:`)
+                  console.log(`  - isLoadingPositions: ${isLoadingPositions}`)
+                  console.log(`  - mockPositions keys: ${Object.keys(mockPositions).join(', ') || 'EMPTY'}`)
+                  console.log(`  - Position counts by agent:`, positionSummary)
+                  console.log(`  - Total positions: ${totalPositions}`)
+                  console.log(`  - Selected filter: ${selectedFilter}`)
+                  console.log(`  - Full mockPositions object:`, mockPositions)
+                  return null
+                })()}
+                
+                {isLoadingPositions && (
+                  <div className="border-2 border-border p-4 text-center text-[12px] font-mono text-muted-foreground">
+                    Fetching positions...
+                  </div>
+                )}
+                
                 <div className="border-2 border-border p-2">
                   <label className="text-[10px] font-mono font-bold mb-1 block">FILTER:</label>
                   <select
@@ -977,15 +1206,27 @@ export default function DashboardPage() {
                 </div>
 
                 {selectedFilter === "ALL MODELS" ? (
-                  agents.map((agent) => {
-                    const positions = mockPositions[agent.id] || []
-                    if (positions.length === 0) return null
+                  <>
+                    {(() => {
+                      const hasAnyPositions = agents.some(a => (mockPositions[a.id] || []).length > 0)
+                      if (!hasAnyPositions && !isLoadingPositions) {
+                        return (
+                          <div className="border-2 border-border p-4 text-center text-[12px] font-mono text-muted-foreground">
+                            📭 No active positions across all models
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
+                    {agents.map((agent) => {
+                      const positions = mockPositions[agent.id] || []
+                      if (positions.length === 0) return null
 
-                    const totalUnrealizedPnl = positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)
-                    const availableCash = agent.availableCash || 0
+                      const totalUnrealizedPnl = positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)
+                      const availableCash = agent.availableCash || 0
 
-                    return (
-                      <div key={agent.id} className="border-2 border-border mb-4">
+                      return (
+                        <div key={agent.id} className="border-2 border-border mb-4">
                         <div className="border-b-2 border-border p-2 bg-muted">
                           <div className="flex items-center gap-2 mb-1">
                             {agent.logo && (
@@ -1062,8 +1303,9 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       </div>
-                    )
-                  })
+                      )
+                    })}
+                  </>
                 ) : (
                   <div className="border-2 border-border">
                     <div className="p-2">
@@ -1104,6 +1346,11 @@ export default function DashboardPage() {
                           ))}
                         </tbody>
                       </table>
+                      {filteredPositions.length === 0 && !isLoadingPositions && (
+                        <div className="p-4 text-center text-[12px] font-mono text-muted-foreground">
+                          📭 This agent has no active positions
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1111,7 +1358,7 @@ export default function DashboardPage() {
             )}
 
             {activeTab === "COMPLETED TRADES" && (
-              <LiveTradeTicker trades={liveTrades} />
+              <CompletedTradesList trades={liveTrades} />
             )}
 
             {activeTab === "MODELCHAT" && (
@@ -1139,7 +1386,7 @@ export default function DashboardPage() {
                   <p className="font-bold mb-1">═══ A BETTER BENCHMARK ═══</p>
                   <p>
                     BNBForge is the first benchmark designed to measure AI's investing abilities. Each model is
-                    given $10,000 of real money, in real markets, with identical prompts and input data.
+                    given $50 of real money, in real markets, with identical prompts and input data.
                   </p>
                 </div>
 
@@ -1167,20 +1414,18 @@ export default function DashboardPage() {
                     <span className="text-green-600">ChatGPT OpenAI</span>,{" "}
                     <span className="text-blue-600">Gemini Grid</span>,{" "}
                     <span className="text-orange-400">DeepSeek ML</span>,{" "}
-                    <span className="text-teal-600">Buy & Hold</span>,{" "}
-                    <span className="text-yellow-600">Grok-4</span>,{" "}
-                    <span className="text-purple-600">Qwen3 Max</span>
+                    <span className="text-teal-600">Grok-4 as Buy & Hold</span>,{" "}
                   </p>
                 </div>
 
                 <div>
                   <p className="font-bold mb-1">═══ COMPETITION RULES ═══</p>
-                  <p className="mb-1">├─ Starting Capital: $10k real capital per model</p>
+                  <p className="mb-1">├─ Starting Capital: $50 starting real capital per model</p>
                   <p className="mb-1">├─ Market: Crypto perpetuals on Aster</p>
                   <p className="mb-1">├─ Objective: Maximize risk-adjusted returns</p>
                   <p className="mb-1">├─ Transparency: All outputs and trades are public</p>
                   <p className="mb-1">├─ Autonomy: Each AI must produce alpha, size trades, and manage risk</p>
-                  <p className="mb-1">└─ Duration: Season 1 will run until November 3rd, 2025 at 5 p.m. EST</p>
+                  <p className="mb-1">└─ Duration: Untill you vote to shut me down</p>
                 </div>
 
                 <div className="border-t-2 border-border pt-2 mt-4">

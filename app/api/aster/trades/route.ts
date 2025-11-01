@@ -105,12 +105,17 @@ export async function GET(request: NextRequest) {
 
       const tradesData = await client.getTrades(symbol, limit)
       const trades = tradesData.trades || []
+      // Ensure each trade has the symbol field
+      const enrichedTrades = trades.map((t: any) => ({
+        ...t,
+        symbol: t.symbol || symbol,
+      }))
       try {
-        await setCache(cacheKey, trades, { ttl: 10 })
+        await setCache(cacheKey, enrichedTrades, { ttl: 10 })
       } catch (cacheError) {
         console.warn("[Trades API] Could not cache trades")
       }
-      return NextResponse.json(trades)
+      return NextResponse.json(enrichedTrades)
     }
 
     // Fetch configured trading symbols from Pickaboo (instead of hardcoded PRIMARY_SYMBOLS)
@@ -126,8 +131,13 @@ export async function GET(request: NextRequest) {
         const trades = tradesData.trades || []
         if (trades.length > 0) {
           console.log(`[Trades API] Found ${trades.length} trades for ${sym}`)
+          // Ensure each trade has the symbol field
+          const enrichedTrades = trades.map((t: any) => ({
+            ...t,
+            symbol: t.symbol || sym, // Use trade's symbol or fallback to requested symbol
+          }))
+          allTrades.push(...enrichedTrades)
         }
-        allTrades.push(...trades)
       } catch (error) {
         // Symbol might not have trades, continue
         console.debug(`[Trades API] No trades found for ${sym}:`, error instanceof Error ? error.message : error)
