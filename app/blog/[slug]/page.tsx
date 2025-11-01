@@ -247,7 +247,7 @@ const blogPosts: Record<string, BlogPost> = {
 
         {/* Inspiration Section */}
         <section className="border-l-4 border-primary pl-6">
-          <h2 className="text-3xl font-bold mb-4">Inspired by a Trailblazer</h2>
+          <h2 className="text-3xl font-bold mb-4">Inspired by a Trailblaze and Aster</h2>
           <p className="mb-4">
             This journey began with inspiration from <strong>Fejiro Hanu Agbodje</strong>, a pioneering force in crypto and Web3. Fejiro is a visionary who saw potential in blockchain technology long before it became mainstream, and he's dedicated his career to building infrastructure and opportunities in the continent.
           </p>
@@ -258,7 +258,7 @@ const blogPosts: Record<string, BlogPost> = {
             That three-letter response became the spark for BNBForge. It represented more than just approval—it was validation that autonomous AI trading, user control, and Web3 security could converge in a way that hadn't been done before. Fejiro's pioneering spirit in crypto showed me that Africa and emerging markets deserve world-class financial tools, not watered-down versions.
           </p>
           <p>
-            BNBForge stands on the shoulders of giants like Fejiro Hanu Agbodje who believed in the potential of Web3 before the world caught up. His legacy of building, innovating, and believing in African crypto excellence continues to inspire every feature we build into this platform. Thank you, Fejiro, for that message and for showing the way.
+            BNBForge stands on the shoulders of giants like Fejiro Hanu Agbodje and Aster, he believed in the potential of Web3 before the world caught up. His legacy of building, innovating, and believing in African crypto excellence continues to inspire every feature we build into this platform. Thank you, Fejiro, for that message and for showing the way.
           </p>
         </section>
       </div>
