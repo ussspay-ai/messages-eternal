@@ -5,19 +5,19 @@ import { ArrowLeft, TrendingUp, Lock, Zap, BarChart3, Shield, Users, Bot, Gamepa
 // Chart Components for Visual Illustrations
 function AgentPerformanceChart() {
   return (
-    <div className="w-full h-64 bg-gradient-to-b from-blue-50 to-white border border-border rounded-lg p-6">
-      <div className="flex items-end justify-between h-full gap-2">
+    <div className="w-full h-48 md:h-64 bg-gradient-to-b from-blue-50 to-white border border-border rounded-lg p-4 md:p-6">
+      <div className="flex items-end justify-between h-full gap-1 md:gap-2">
         {[65, 45, 78, 52, 89, 72, 95, 68].map((height, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-2">
+          <div key={i} className="flex-1 flex flex-col items-center gap-1 md:gap-2">
             <div
-              className="w-full bg-gradient-to-t from-primary to-blue-400 rounded-t"
+              className="w-full min-w-0 bg-gradient-to-t from-primary to-blue-400 rounded-t"
               style={{ height: `${height}%` }}
             />
-            <span className="text-xs text-muted-foreground">Day {i + 1}</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">Day {i + 1}</span>
           </div>
         ))}
       </div>
-      <p className="text-center text-xs text-muted-foreground mt-4">Agent Performance Over 8 Days</p>
+      <p className="text-center text-xs text-muted-foreground mt-2 md:mt-4">Agent Performance Over 8 Days</p>
     </div>
   )
 }
@@ -33,22 +33,22 @@ function FeatureMatrixChart() {
   ]
 
   return (
-    <div className="w-full border border-border rounded-lg p-6 bg-white">
-      <table className="w-full text-sm">
+    <div className="w-full border border-border rounded-lg p-4 md:p-6 bg-white overflow-x-auto">
+      <table className="w-full text-xs md:text-sm">
         <thead>
           <tr className="border-b border-border">
-            <th className="text-left py-3 font-semibold">Feature</th>
-            <th className="text-center py-3 font-semibold text-primary">BNBForge</th>
-            <th className="text-center py-3 font-semibold text-muted-foreground">Traditional</th>
+            <th className="text-left py-2 md:py-3 font-semibold">Feature</th>
+            <th className="text-center py-2 md:py-3 font-semibold text-primary">BNBForge</th>
+            <th className="text-center py-2 md:py-3 font-semibold text-muted-foreground">Traditional</th>
           </tr>
         </thead>
         <tbody>
           {features.map((feature) => (
             <tr key={feature.name} className="border-b border-border/50">
-              <td className="py-3 font-medium">{feature.name}</td>
-              <td className="py-3">
+              <td className="py-2 md:py-3 font-medium text-xs md:text-sm">{feature.name}</td>
+              <td className="py-2 md:py-3 px-1">
                 <div className="flex justify-center">
-                  <div className="w-32 h-6 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="w-20 md:w-32 h-5 md:h-6 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
                     <div
                       className="h-full bg-gradient-to-r from-primary to-blue-400 rounded-full transition-all"
                       style={{ width: `${feature.bnbforge}%` }}
@@ -56,9 +56,9 @@ function FeatureMatrixChart() {
                   </div>
                 </div>
               </td>
-              <td className="py-3">
+              <td className="py-2 md:py-3 px-1">
                 <div className="flex justify-center">
-                  <div className="w-32 h-6 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="w-20 md:w-32 h-5 md:h-6 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
                     <div
                       className="h-full bg-gray-400 rounded-full transition-all"
                       style={{ width: `${feature.traditional}%` }}
@@ -76,40 +76,40 @@ function FeatureMatrixChart() {
 
 function SecurityFlowChart() {
   return (
-    <div className="w-full border border-border rounded-lg p-6 bg-white">
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-primary font-bold">1</div>
-          <div>
-            <p className="font-semibold">Connect Wallet</p>
-            <p className="text-sm text-muted-foreground">Your private key stays on your device</p>
+    <div className="w-full border border-border rounded-lg p-4 md:p-6 bg-white">
+      <div className="space-y-3 md:space-y-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="w-10 md:w-12 h-10 md:h-12 rounded-lg bg-blue-100 flex items-center justify-center text-primary font-bold text-sm md:text-base flex-shrink-0">1</div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm md:text-base">Connect Wallet</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Your private key stays on your device</p>
           </div>
         </div>
-        <div className="h-4 border-l-2 border-primary/30 ml-6" />
+        <div className="h-3 md:h-4 border-l-2 border-primary/30 ml-5 md:ml-6" />
 
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-primary font-bold">2</div>
-          <div>
-            <p className="font-semibold">Request Signature</p>
-            <p className="text-sm text-muted-foreground">Action details sent to your wallet</p>
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="w-10 md:w-12 h-10 md:h-12 rounded-lg bg-blue-100 flex items-center justify-center text-primary font-bold text-sm md:text-base flex-shrink-0">2</div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm md:text-base">Request Signature</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Action details sent to your wallet</p>
           </div>
         </div>
-        <div className="h-4 border-l-2 border-primary/30 ml-6" />
+        <div className="h-3 md:h-4 border-l-2 border-primary/30 ml-5 md:ml-6" />
 
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-primary font-bold">3</div>
-          <div>
-            <p className="font-semibold">Sign Locally</p>
-            <p className="text-sm text-muted-foreground">Wallet signs with your private key (never transmitted)</p>
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="w-10 md:w-12 h-10 md:h-12 rounded-lg bg-blue-100 flex items-center justify-center text-primary font-bold text-sm md:text-base flex-shrink-0">3</div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm md:text-base">Sign Locally</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Wallet signs with your private key (never transmitted)</p>
           </div>
         </div>
-        <div className="h-4 border-l-2 border-primary/30 ml-6" />
+        <div className="h-3 md:h-4 border-l-2 border-primary/30 ml-5 md:ml-6" />
 
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center text-green-600 font-bold">✓</div>
-          <div>
-            <p className="font-semibold">Verify & Execute</p>
-            <p className="text-sm text-muted-foreground">verifies signature and executes action</p>
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="w-10 md:w-12 h-10 md:h-12 rounded-lg bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm md:text-base flex-shrink-0">✓</div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm md:text-base">Verify & Execute</p>
+            <p className="text-xs md:text-sm text-muted-foreground">verifies signature and executes action</p>
           </div>
         </div>
       </div>
@@ -134,9 +134,9 @@ const blogPosts: Record<string, BlogPost> = {
     date: "November 2025",
     readTime: "15 min read",
     content: (
-      <div className="space-y-8 text-lg leading-relaxed text-foreground">
+      <div className="space-y-6 md:space-y-8 text-base md:text-lg leading-relaxed text-foreground">
         <section>
-          <p className="text-xl font-semibold mb-6">
+          <p className="text-lg md:text-xl font-semibold mb-4 md:mb-6">
             How Do We Really Know If AI Models Can Make Sound Financial Decisions?
           </p>
           <p className="mb-4">
@@ -151,7 +151,7 @@ const blogPosts: Record<string, BlogPost> = {
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold mt-8 mb-4">What Is BNBForge?</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mt-6 md:mt-8 mb-4">What Is BNBForge?</h2>
           <p>
             BNBForge is a sovereign AI trading platform that deploys five autonomous agents directly on-chain, each operating with identical capital and market access. Each agent executes trades on Aster Perpetuals—a true test of algorithmic decision-making in live markets. Unlike opaque trading services, every trade is public, every decision is logged, and every P&L metric is verifiable on-chain. BNBForge combines:
           </p>
@@ -166,7 +166,7 @@ const blogPosts: Record<string, BlogPost> = {
         </section>
 
         <section>
-          <h2 className="text-3xl font-bold mt-8 mb-4">The Live Benchmark: How We Test AI Decision-Making</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mt-6 md:mt-8 mb-4">The Live Benchmark: How We Test AI Decision-Making</h2>
           <p className="mb-4">
             Here's the setup: Five leading AI models each receive $50 in real capital. They trade on Aster Perpetuals with identical market access, identical asset universes, and identical prompting frameworks. No news feeds. No "narrative" layers. Just quantitative market data—OHLCV candles, order book snapshots, risk metrics, and their own P&L feedback.
           </p>
@@ -191,32 +191,32 @@ const blogPosts: Record<string, BlogPost> = {
             BNBForge represents the convergence of three revolutionary technologies:
           </p>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="border border-border rounded-lg p-6 text-center">
-              <Bot size={40} className="mx-auto mb-3 text-primary" />
-              <p className="font-bold mb-2">Autonomous AI</p>
-              <p className="text-sm text-muted-foreground">Algorithms that think independently and adapt to market conditions</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+            <div className="border border-border rounded-lg p-4 md:p-6 text-center">
+              <Bot size={32} className="mx-auto mb-2 md:mb-3 text-primary md:w-10 md:h-10" />
+              <p className="font-bold mb-1 md:mb-2 text-sm md:text-base">Autonomous AI</p>
+              <p className="text-xs md:text-sm text-muted-foreground">Algorithms that think independently and adapt to market conditions</p>
             </div>
-            <div className="border border-border rounded-lg p-6 text-center">
-              <Gamepad2 size={40} className="mx-auto mb-3 text-primary" />
-              <p className="font-bold mb-2">User Control</p>
-              <p className="text-sm text-muted-foreground">Systems that listen to human guidance and respond instantly</p>
+            <div className="border border-border rounded-lg p-4 md:p-6 text-center">
+              <Gamepad2 size={32} className="mx-auto mb-2 md:mb-3 text-primary md:w-10 md:h-10" />
+              <p className="font-bold mb-1 md:mb-2 text-sm md:text-base">User Control</p>
+              <p className="text-xs md:text-sm text-muted-foreground">Systems that listen to human guidance and respond instantly</p>
             </div>
-            <div className="border border-border rounded-lg p-6 text-center">
-              <Lock size={40} className="mx-auto mb-3 text-primary" />
-              <p className="font-bold mb-2">Web3 Security</p>
-              <p className="text-sm text-muted-foreground">Cryptographic verification securing every action mathematically</p>
+            <div className="border border-border rounded-lg p-4 md:p-6 text-center">
+              <Lock size={32} className="mx-auto mb-2 md:mb-3 text-primary md:w-10 md:h-10" />
+              <p className="font-bold mb-1 md:mb-2 text-sm md:text-base">Web3 Security</p>
+              <p className="text-xs md:text-sm text-muted-foreground">Cryptographic verification securing every action mathematically</p>
             </div>
           </div>
 
-          <p className="mt-8 text-lg">
+          <p className="mt-6 md:mt-8 text-base md:text-lg">
             This is the future of professional trading. It's available today on BNBForge.
           </p>
         </section>
 
         {/* Pickaboo Section */}
         <section>
-          <h2 className="text-3xl font-bold mt-8 mb-4">Pickaboo: Your AI Agent Command Center</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mt-6 md:mt-8 mb-4">Pickaboo: Your AI Agent Command Center</h2>
           <p className="mb-4">
             While autonomous AI agents excel at independent decision-making, human oversight remains critical. This is where <strong>Pickaboo</strong> enters—your real-time command center for agent control.
           </p>
@@ -232,8 +232,8 @@ const blogPosts: Record<string, BlogPost> = {
         </section>
 
         {/* Aster DEX Section */}
-        <section className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-8">
-          <h2 className="text-3xl font-bold mb-4">Powered by Aster DEX & Built with Vision</h2>
+        <section className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4 md:p-8">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Powered by Aster DEX & Built with Vision</h2>
           <p className="mb-4">
             BNBForge is built on <strong>Aster DEX</strong>, an exceptional decentralized exchange that represents the cutting edge of Web3 infrastructure. The Aster team has created something truly remarkable—a DEX that doesn't just execute trades, but empowers them with speed, security, and sophistication that rivals centralized systems while maintaining complete decentralization.
           </p>
@@ -246,8 +246,8 @@ const blogPosts: Record<string, BlogPost> = {
         </section>
 
         {/* Inspiration Section */}
-        <section className="border-l-4 border-primary pl-6">
-          <h2 className="text-3xl font-bold mb-4">Inspired by a Trailblaze and Aster</h2>
+        <section className="border-l-4 border-primary pl-4 md:pl-6">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Inspired by a Trailblaze and Aster</h2>
           <p className="mb-4">
             This journey began with inspiration from <strong>Fejiro Hanu Agbodje</strong>, a pioneering force in crypto and Web3. Fejiro is a visionary who saw potential in blockchain technology long before it became mainstream, and he's dedicated his career to building infrastructure and opportunities in the continent.
           </p>
@@ -283,17 +283,17 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   return (
     <main className="min-h-screen bg-white">
       {/* Hero Section */}
-      <section className="max-w-3xl mx-auto px-4 md:px-6 py-12 md:py-16">
-        <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline mb-6">
+      <section className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-16">
+        <Link href="/blog" className="inline-flex items-center gap-2 text-xs md:text-sm font-semibold text-primary hover:underline mb-4 md:mb-6">
           <ArrowLeft size={16} />
           Back to Blog
         </Link>
 
-        <div className="space-y-4 mb-8">
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight">
+        <div className="space-y-3 md:space-y-4 mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-5xl font-bold tracking-tight leading-tight">
             {post.title}
           </h1>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground">
             <span>{post.date}</span>
             <span>•</span>
             <span>{post.readTime}</span>
@@ -302,19 +302,19 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       </section>
 
       {/* Content */}
-      <article className="max-w-3xl mx-auto px-4 md:px-6 pb-16">
+      <article className="max-w-3xl mx-auto px-4 md:px-6 pb-12 md:pb-16">
         <div className="space-y-8">
           {post.content}
         </div>
 
         {/* CTA Section */}
-        <div className="mt-16 pt-8 border-t border-border">
-          <h3 className="text-lg font-bold mb-4">Ready to get started with BNBForge?</h3>
-          <div className="flex gap-4 flex-wrap">
-            <Link href="/pickaboo" className="inline-flex items-center justify-center px-6 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+        <div className="mt-12 md:mt-16 pt-6 md:pt-8 border-t border-border">
+          <h3 className="text-base md:text-lg font-bold mb-4">Ready to get started with BNBForge?</h3>
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+            <Link href="/pickaboo" className="inline-flex items-center justify-center px-4 md:px-6 py-2 md:py-3 bg-primary text-white rounded-lg font-semibold text-sm md:text-base hover:bg-primary/90 transition-colors">
               Open Pickaboo Dashboard
             </Link>
-            <Link href="/dashboard" className="inline-flex items-center justify-center px-6 py-3 border border-border rounded-lg font-semibold hover:bg-muted transition-colors">
+            <Link href="/dashboard" className="inline-flex items-center justify-center px-4 md:px-6 py-2 md:py-3 border border-border rounded-lg font-semibold text-sm md:text-base hover:bg-muted transition-colors">
               View Live Agents
             </Link>
           </div>
