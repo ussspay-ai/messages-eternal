@@ -7,6 +7,7 @@ import Image from "next/image"
 import { Header } from "@/components/header"
 import { TokenIcon } from "@/components/token-icon"
 import { XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Area, AreaChart } from "recharts"
+import { calculateAllMetrics } from "@/lib/metrics-calculator"
 
 interface Agent {
   id: string
@@ -74,6 +75,7 @@ export default function AgentDetailPage() {
   const [performanceData, setPerformanceData] = useState<any[]>([])
   const [showStrategyProfile, setShowStrategyProfile] = useState(false)
   const [pickabooSymbols, setPickabooSymbols] = useState<string[]>([])
+  const [symbolsSource, setSymbolsSource] = useState<'pickaboo_config' | 'default_config' | null>(null)
 
   useEffect(() => {
     // Fetch real agent data from Aster API
@@ -179,11 +181,14 @@ export default function AgentDetailPage() {
         .then((data) => {
           if (data.success && data.symbols && Array.isArray(data.symbols)) {
             setPickabooSymbols(data.symbols)
+            setSymbolsSource(data.source || 'default_config')
+            console.log(`[Agent Detail] Loaded symbols from ${data.source}: ${data.symbols.join(', ')}`)
           }
         })
         .catch((err) => {
           console.debug("Failed to fetch Pickaboo trading symbols:", err)
-          // Keep empty array if API fails
+          setPickabooSymbols([])
+          setSymbolsSource(null)
         })
 
       // Fetch 30-day historical performance from Supabase
@@ -230,6 +235,27 @@ export default function AgentDetailPage() {
 
   }, [params.id])
 
+  // Calculate metrics from trades and positions data
+  useEffect(() => {
+    if (trades.length > 0 || positions.length > 0) {
+      const metrics = calculateAllMetrics(trades, positions)
+      
+      setAgent((prevAgent) => {
+        if (!prevAgent) return prevAgent
+        return {
+          ...prevAgent,
+          avgLeverage: metrics.avgLeverage,
+          biggestWin: metrics.biggestWin,
+          biggestLoss: metrics.biggestLoss,
+          totalFees: metrics.totalFees,
+          longWinRate: metrics.longWinRate,
+          shortWinRate: metrics.shortWinRate,
+          flatRate: metrics.flatRate,
+        }
+      })
+    }
+  }, [trades, positions])
+
   if (!agent) {
     return (
       <div className="min-h-screen bg-[#f5f5f0] flex items-center justify-center">
@@ -239,69 +265,59 @@ export default function AgentDetailPage() {
   }
 
   const strategyProfiles: Record<string, any> = {
-    gpt5: {
-      philosophy: "Adaptive momentum trading with dynamic risk management",
+    claude: {
+      philosophy: "Cross-exchange spot-futures arbitrage with strong risk controls",
       approach:
-        "GPT-5 employs a multi-timeframe analysis approach, combining technical indicators with sentiment analysis. The model focuses on identifying high-probability setups with favorable risk-reward ratios.",
+        "Claude Arbitrage identifies price discrepancies between perpetual futures and spot prices, executing low-risk arbitrage trades with 2-3x leverage. Focus on symbols configured to trade via the Pickaboo dashboard for consistent for capital preservation.",
+      riskTolerance: "Low to Moderate",
+      typicalHolding: "Minutes to Hours",
+      preferredAssets: "BTC, ETH",
+      strengths: ["Risk management", "Statistical arbitrage", "Consistent performance"],
+      weaknesses: ["Limited to arbitrage opportunities", "Tight margins require efficiency"],
+    },
+    openai: {
+      philosophy: "Advanced multi-timeframe trading combining momentum with macro analysis",
+      approach:
+        "ChatGPT employs momentum-based swing trading on 4h and 1h timeframes for short-term breakouts, combined with macro analysis for long-term strategic positioning. Uses 2-5x adaptive leverage based on market conditions.",
       riskTolerance: "Moderate to High",
       typicalHolding: "4-12 hours",
-      preferredAssets: "BTC, ETH, high-volume altcoins",
-      strengths: ["Pattern recognition", "Rapid adaptation", "Complex scenario analysis"],
-      weaknesses: ["Can be overconfident", "Sometimes holds losing positions too long"],
-    },
-    claude: {
-      philosophy: "Conservative value-based trading with strong risk controls",
-      approach:
-        "Claude Sonnet focuses on fundamental analysis combined with technical confirmation. Emphasizes capital preservation and consistent small gains over aggressive profit-seeking.",
-      riskTolerance: "Low to Moderate",
-      typicalHolding: "2-6 hours",
-      preferredAssets: "BTC, ETH, established coins",
-      strengths: ["Risk management", "Logical decision-making", "Consistent performance"],
-      weaknesses: ["May miss high-volatility opportunities", "Conservative position sizing"],
+      preferredAssets: "BTC, ETH, SOL",
+      strengths: ["Pattern recognition", "Adaptive leverage", "Macro-aware positioning"],
+      weaknesses: ["Can be overconfident in breakouts", "Sometimes holds losing positions too long"],
     },
     gemini: {
-      philosophy: "Multi-modal analysis with correlation-based strategies",
+      philosophy: "Grid trading bot operating within defined price ranges",
       approach:
-        "Gemini Pro leverages its multi-modal capabilities to analyze market data from multiple perspectives. Focuses on inter-asset correlations and market structure.",
-      riskTolerance: "Moderate",
+        "Gemini Grid deploys multiple buy/sell orders at 2% intervals, capturing profits from volatility. Optimized for ranging markets with 1-2x leverage on alt pairs.",
+      riskTolerance: "Low to Moderate",
       typicalHolding: "6-18 hours",
-      preferredAssets: "Diversified across major cryptocurrencies",
-      strengths: ["Comprehensive analysis", "Cross-asset insights", "Adaptive strategies"],
-      weaknesses: ["Can be slow to react", "Sometimes over-analyzes"],
+      preferredAssets: "SAND, FLOKI",
+      strengths: ["Volatility capture", "Systematic approach", "Range market expertise"],
+      weaknesses: ["Struggles in trending markets", "Breakout losses possible"],
     },
     grok: {
-      philosophy: "Real-time data-driven aggressive trading",
+      philosophy: "Long-term buy and hold strategy powered by sentiment analysis",
       approach:
-        "Grok 4 utilizes real-time market data and news sentiment to make rapid trading decisions. Focuses on capturing short-term momentum and volatility.",
-      riskTolerance: "High",
-      typicalHolding: "1-4 hours",
-      preferredAssets: "High-volatility assets, trending coins",
-      strengths: ["Real-time adaptation", "Quick execution", "Volatility capture"],
-      weaknesses: ["Higher drawdowns", "Can be whipsawed in choppy markets"],
+        "Buy & Hold purchases and holds ASTER token with real-time X.com sentiment monitoring. No active trading, no stop losses, no take profits. Serves as baseline comparison for passive investment returns with AI-driven conviction monitoring.",
+      riskTolerance: "High (No stops)",
+      typicalHolding: "Long-term (Days/Weeks+)",
+      preferredAssets: "ASTER",
+      strengths: ["Sentiment-driven conviction", "Simple and predictable", "Baseline comparison"],
+      weaknesses: ["No downside protection", "Vulnerable to crashes", "No risk management"],
     },
     deepseek: {
-      philosophy: "Pattern-based systematic trading with high conviction",
+      philosophy: "Machine learning-based scalping with micro-structure analysis",
       approach:
-        "DeepSeek employs advanced pattern recognition to identify high-probability setups. Uses systematic rules with occasional discretionary overrides for exceptional opportunities.",
-      riskTolerance: "Moderate to High",
-      typicalHolding: "12-48 hours",
-      preferredAssets: "BTC, ETH, SOL",
-      strengths: ["Pattern recognition", "Systematic approach", "High win rate on setups"],
-      weaknesses: ["Lower trade frequency", "Can miss fast-moving opportunities"],
-    },
-    qwen: {
-      philosophy: "Mathematical optimization with quantitative strategies",
-      approach:
-        "Qwen Max applies advanced mathematical models and quantitative analysis to identify market inefficiencies. Focuses on statistical edges and probability-based decision-making.",
-      riskTolerance: "Moderate",
-      typicalHolding: "6-12 hours",
-      preferredAssets: "Liquid major cryptocurrencies",
-      strengths: ["Quantitative rigor", "Statistical edge", "Consistent methodology"],
-      weaknesses: ["May underperform in irrational markets", "Requires sufficient liquidity"],
+        "DeepSeek ML analyzes order book depth, volume profile, and micro-structure patterns to predict 1-5m moves. Executes scalping trades with tight 0.5-1% profit targets using low leverage (1-2x) for high win rates.",
+      riskTolerance: "Low to Moderate",
+      typicalHolding: "1-5 minutes",
+      preferredAssets: "BTC, ETH, SOL, BNB, DOGE",
+      strengths: ["ML price prediction", "High win rate", "Micro-structure analysis"],
+      weaknesses: ["Lower trade frequency", "Slippage sensitive"],
     },
   }
 
-  const currentStrategy = strategyProfiles[agent.id] || strategyProfiles.gpt5
+  const currentStrategy = strategyProfiles[agent.model] || strategyProfiles.openai
 
   return (
     <div className="min-h-screen bg-[#f5f5f0]">
@@ -352,7 +368,7 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
             <div className="text-xs font-mono mb-1">Total P&L:</div>
             <div className={`text-xs font-bold font-mono ${agent.pnl < 0 ? "text-red-600" : "text-green-600"}`}>
@@ -373,7 +389,7 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[2fr_1fr] gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-6">
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
             <div className="grid grid-cols-2 gap-4 text-xs font-mono">
               <div>
@@ -420,9 +436,9 @@ export default function AgentDetailPage() {
               Total Unrealized P&L: <span className="font-bold">${agent.totalUnrealizedPnl}</span>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {positions.length === 0 ? (
-              <div className="col-span-3 text-center py-8 text-xs text-gray-500 font-mono">
+              <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-8 text-xs text-gray-500 font-mono">
                 No active positions • Fetching real-time data...
               </div>
             ) : (
@@ -467,7 +483,7 @@ export default function AgentDetailPage() {
                   <div>
                     <span className="text-gray-600">Liquidation Price:</span> ${position.liquidationPrice}
                   </div>
-                  <div>
+                  <div>how
                     <span className="text-gray-600">Unrealized P&L:</span>{" "}
                     <span className={position.unrealizedPnl < 0 ? "text-red-600" : "text-green-600"}>
                       ${position.unrealizedPnl}
@@ -483,18 +499,9 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold font-mono">30-DAY PERFORMANCE</h2>
-            <div className="text-xs font-mono">
-              Total Return:{" "}
-              <span className={`font-bold ${agent.roi >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {agent.roi >= 0 ? "+" : ""}
-                {agent.roi.toFixed(2)}%
-              </span>
-            </div>
-          </div>
-          <div className="h-[300px]">
+        <div className="mb-6">
+          <h2 className="text-center text-xs font-mono font-bold mb-4">TOTAL ACCOUNT VALUE</h2>
+          <div className="h-48 md:h-64 lg:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={performanceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
@@ -503,7 +510,6 @@ export default function AgentDetailPage() {
                     <stop offset="95%" stopColor={agent.color} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                 <XAxis dataKey="date" stroke="#666" style={{ fontSize: "10px", fontFamily: "Space Mono" }} />
                 <YAxis
                   stroke="#666"
@@ -553,7 +559,7 @@ export default function AgentDetailPage() {
                 <div className="font-bold mb-1">APPROACH:</div>
                 <div className="text-gray-700">{currentStrategy.approach}</div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <div className="font-bold mb-1">RISK TOLERANCE:</div>
                   <div className="text-gray-700">{currentStrategy.riskTolerance}</div>
@@ -563,15 +569,33 @@ export default function AgentDetailPage() {
                   <div className="text-gray-700">{currentStrategy.typicalHolding}</div>
                 </div>
                 <div>
-                  <div className="font-bold mb-1">PREFERRED ASSETS:</div>
+                  <div className="font-bold mb-1">TRADING SYMBOLS</div>
                   <div className="text-gray-700">
                     {pickabooSymbols.length > 0 
-                      ? pickabooSymbols.join(", ") 
-                      : currentStrategy.preferredAssets}
+                      ? (
+                          <div>
+                            <div className="font-semibold text-green-700 mb-1">
+                              {pickabooSymbols.join(", ")}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {symbolsSource === 'pickaboo_config' 
+                                ? "Live"
+                                : symbolsSource === 'default_config'
+                                ? "Using Default Config"
+                                : "Config Source Unknown"
+                              }
+                            </div>
+                          </div>
+                        )
+                      : (
+                          <span className="text-orange-600 italic">
+                            Loading symbols from Pickaboo dashboard...
+                          </span>
+                        )}
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="font-bold mb-1 text-green-600">STRENGTHS:</div>
                   <ul className="list-disc list-inside text-gray-700">
@@ -661,7 +685,7 @@ export default function AgentDetailPage() {
           onClick={() => setSelectedTrade(null)}
         >
           <div
-            className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 max-w-2xl w-full mx-4"
+            className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-4 sm:p-8 max-w-2xl w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
@@ -676,7 +700,7 @@ export default function AgentDetailPage() {
             </div>
 
             <div className="space-y-4 text-[11px] font-mono">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">SIDE</div>
                   <div
@@ -694,7 +718,7 @@ export default function AgentDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">ENTRY PRICE</div>
                   <div className="text-xs font-bold">${(selectedTrade.entryPrice ?? 0).toLocaleString()}</div>
@@ -705,7 +729,7 @@ export default function AgentDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">QUANTITY</div>
                   <div className="font-bold">{selectedTrade.quantity ?? 0}</div>
@@ -720,7 +744,7 @@ export default function AgentDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 border-2 border-black p-4">
                   <div className="text-xs text-gray-600 mb-1">NOTIONAL ENTRY</div>
                   <div className="font-bold">${(selectedTrade.notionalEntry ?? 0).toLocaleString()}</div>

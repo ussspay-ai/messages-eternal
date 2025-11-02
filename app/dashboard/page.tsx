@@ -80,14 +80,15 @@ const CustomTooltip = (props: any) => {
     <div
       style={{
         backgroundColor: "white",
-        border: "2px solid black",
-        borderRadius: "0",
-        padding: "8px 12px",
-        fontSize: "10px",
+        border: "1px solid #ccc",
+        borderRadius: "2px",
+        padding: "6px 10px",
+        fontSize: "9px",
         fontFamily: "Space Mono",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
       }}
     >
-      <div style={{ color: agent.color, fontWeight: "bold", marginBottom: "4px" }}>
+      <div style={{ color: agent.color, fontWeight: "bold", marginBottom: "3px" }}>
         {agent.name}
       </div>
       <div style={{ color: "#000" }}>
@@ -970,7 +971,7 @@ export default function DashboardPage() {
       <div className="border-b-2 border-border bg-background px-4 md:px-6 py-2 overflow-x-auto flex-shrink-0">
         <div className="flex items-center gap-4 md:justify-between text-xs font-mono min-w-max">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">HIGHEST:</span>
+            <span className="text-muted-foreground">REAL TIME AGENT ROI INCREASE:</span>
             {highestAgent?.logo && (
               <Image
                 src={highestAgent.logo || "/placeholder.svg"}
@@ -987,7 +988,7 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">LOWEST:</span>
+            <span className="text-muted-foreground">REAL TIME AGENT ROI DECREASE:</span>
             {lowestAgent?.logo && (
               <Image
                 src={lowestAgent.logo || "/placeholder.svg"}
@@ -1007,18 +1008,18 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
-        <div className="flex-1 p-4 md:p-6 flex flex-col min-h-0 overflow-hidden">
-          <div className="border-2 border-border bg-background mb-4 md:mb-6 flex-1 min-h-0 flex flex-col relative">
+        <div className="flex-1 p-1 md:p-2 flex flex-col min-h-0 overflow-hidden">
+          <div className="bg-background mb-1 flex-1 min-h-0 flex flex-col relative">
             <ChartWatermark />
-            <div className="border-b-2 border-border px-3 md:px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 flex-shrink-0">
-              <h2 className="text-xs font-bold font-mono">
+            <div className="border-b border-border px-2 md:px-3 py-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 flex-shrink-0">
+              <h2 className="text-[8px] md:text-[9px] font-bold font-mono">
                 {selectedAgent ? `${agents.find((a) => a.id === selectedAgent)?.name || "AGENT"} PERFORMANCE` : "TOTAL ACCOUNT VALUE"}
               </h2>
-              <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+              <div className="flex items-center gap-0.5 md:gap-1 flex-wrap">
                 {selectedAgent && (
                   <button
                     onClick={() => setSelectedAgent(null)}
-                    className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-mono border-2 border-border bg-muted hover:bg-foreground hover:text-background transition-colors"
+                    className="px-1 md:px-1.5 py-0.5 text-[7px] md:text-[8px] font-mono border border-border bg-muted hover:bg-foreground hover:text-background transition-colors"
                   >
                     BACK TO ALL
                   </button>
@@ -1027,7 +1028,7 @@ export default function DashboardPage() {
                   <button
                     key={period}
                     onClick={() => setTimePeriod(period)}
-                    className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-mono border-2 border-border ${
+                    className={`px-1 md:px-1.5 py-0.5 text-[7px] md:text-[8px] font-mono border border-border ${
                       timePeriod === period ? "bg-foreground text-background" : "hover:bg-muted"
                     }`}
                   >
@@ -1037,21 +1038,21 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="p-2 md:p-4 flex-1 flex flex-col min-h-0">
+            <div className="p-0.5 md:p-1 flex-1 flex flex-col min-h-0">
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 20, right: 50, bottom: 20, left: 50 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+                  <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 15, left: 15 }}>
+                    <CartesianGrid strokeDasharray="5 5" stroke="#f0f0f0" vertical={false} />
                     <XAxis
                       dataKey="time"
-                      stroke="#666"
-                      style={{ fontSize: "10px", fontFamily: "Space Mono" }}
+                      stroke="#999"
+                      style={{ fontSize: "8px", fontFamily: "Space Mono" }}
                       tickLine={false}
                       tickFormatter={(value) => formatXAxisTime(value, xAxisFormatType)}
                     />
                     <YAxis
-                      stroke="#666"
-                      style={{ fontSize: "10px", fontFamily: "Space Mono" }}
+                      stroke="#999"
+                      style={{ fontSize: "8px", fontFamily: "Space Mono" }}
                       tickLine={false}
                       domain={[0, "dataMax + 100"]}
                       ticks={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255]}
@@ -1086,10 +1087,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="border-b-2 border-border px-3 md:px-4 py-2 flex items-center justify-end gap-2 flex-shrink-0 bg-background">
+          <div className="border-b border-border px-2 md:px-3 py-1 flex items-center justify-end gap-1 flex-shrink-0 bg-background">
             <button
               onClick={() => setShowPercentage(false)}
-              className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-mono border-2 border-border ${
+              className={`px-1.5 md:px-2 py-0.5 text-[8px] md:text-[9px] font-mono border border-border ${
                 !showPercentage ? "bg-foreground text-background" : "hover:bg-muted"
               }`}
             >
@@ -1097,7 +1098,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => setShowPercentage(true)}
-              className={`px-2 md:px-3 py-1 text-[10px] md:text-xs font-mono border-2 border-border ${
+              className={`px-1.5 md:px-2 py-0.5 text-[8px] md:text-[9px] font-mono border border-border ${
                 showPercentage ? "bg-foreground text-background" : "hover:bg-muted"
               }`}
             >
@@ -1105,42 +1106,42 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2 md:gap-4 p-2 md:p-4 bg-background flex-shrink-0 border-b-2 border-border">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-1 p-1 bg-background flex-shrink-0 border-b border-border">
             {agents.map((agent) => (
               <div
                 key={agent.id}
                 onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
-                className={`border-2 cursor-pointer transition-all duration-200 p-2 md:p-3 flex flex-col items-center justify-center ${
+                className={`border cursor-pointer transition-all duration-200 p-1 flex flex-col items-center justify-center ${
                   selectedAgent === agent.id
                     ? "border-foreground bg-foreground text-background"
                     : "border-border bg-background hover:border-foreground"
                 }`}
               >
-                <div className="flex items-center gap-1 mb-2 justify-center">
+                <div className="flex items-center gap-0.5 mb-1 justify-center">
                   {agent.logo && (
-                    <div className="w-4 h-4 relative flex-shrink-0">
+                    <div className="w-3 h-3 relative flex-shrink-0">
                       <Image
                         src={agent.logo || "/placeholder.svg"}
                         alt={agent.name}
-                        width={16}
-                        height={16}
+                        width={12}
+                        height={12}
                         className="rounded-full"
                       />
                     </div>
                   )}
-                  <span className="text-[9px] md:text-[10px] font-mono font-bold text-center truncate">{agent.name}</span>
+                  <span className="text-[7px] md:text-[8px] font-mono font-bold text-center truncate">{agent.name}</span>
                   {agent.id === 'buy_and_hold' && agent.logo && (
                     <Image
                       src={agent.logo}
                       alt="Grok"
-                      width={12}
-                      height={12}
+                      width={9}
+                      height={9}
                       className="rounded-full"
                       title="Powered by Grok"
                     />
                   )}
                 </div>
-                <div className="text-xs font-bold font-mono text-center">
+                <div className="text-[7px] md:text-[8px] font-bold font-mono text-center">
                   {showPercentage ? `${agent.roi > 0 ? '+' : ''}${agent.roi.toFixed(2)}%` : `$${(agent.accountValue || 0).toLocaleString()}`}
                 </div>
               </div>
@@ -1148,7 +1149,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="w-full lg:w-[400px] border-t-2 lg:border-t-0 lg:border-l-2 border-border bg-background flex flex-col min-h-0">
+        <div className="w-full lg:w-[380px] border-t-2 lg:border-t-0 lg:border-l-2 border-border bg-background flex flex-col min-h-0">
           <div className="flex border-b-2 border-border overflow-x-auto flex-shrink-0">
             {(["COMPLETED TRADES", "MODELCHAT", "POSITIONS", "README.TXT"] as const).map((tab) => (
               <button
