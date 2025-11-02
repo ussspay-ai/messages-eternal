@@ -799,6 +799,42 @@ export default function DashboardPage() {
     setXAxisFormatType(formatType)
   }, [chartData])
 
+  // Sync chart data with current agent balances in real-time
+  useEffect(() => {
+    if (agents.length === 0 || allChartData.length === 0) return
+
+    // Create a current data point with all agent account values
+    const currentPoint: any = {
+      time: new Date().toISOString(),
+    }
+
+    agents.forEach((agent) => {
+      currentPoint[agent.id] = agent.accountValue || 50
+    })
+
+    // Check if we should update or append
+    const lastPoint = allChartData[allChartData.length - 1]
+    if (!lastPoint) return
+
+    const lastPointTime = new Date(lastPoint.time).getTime()
+    const currentTime = new Date().getTime()
+    const timeDiffMs = currentTime - lastPointTime
+
+    // Update the last point if it's less than 10 seconds old, otherwise append new point
+    if (timeDiffMs < 10000) {
+      // Update existing point - merge current values with historical data
+      const updatedPoint = { ...lastPoint }
+      agents.forEach((agent) => {
+        updatedPoint[agent.id] = agent.accountValue || 50
+      })
+      const updatedData = [...allChartData.slice(0, -1), updatedPoint]
+      setAllChartData(updatedData)
+    } else {
+      // Append new point only if significant time has passed
+      setAllChartData([...allChartData, currentPoint])
+    }
+  }, [agents])
+
   // Auto-refresh market prices every 30 seconds (matching cache TTL)
   useEffect(() => {
     const refreshPrices = async () => {
