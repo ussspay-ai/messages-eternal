@@ -16,6 +16,7 @@ interface AgentData {
   logo_url: string
   account_value: number
   total_balance: number
+  available_balance: number
   roi: number
   pnl: number
   total_pnl: number
@@ -79,6 +80,7 @@ export async function GET() {
           logo_url: agent.logo_url,
           account_value: currentValue,
           total_balance: stats.equity || 0,
+          available_balance: stats.availableBalance || 0,
           roi: roi,
           pnl: (currentValue - initialCapital),
           total_pnl: totalPnl,
@@ -106,6 +108,7 @@ export async function GET() {
           logo_url: agent.logo_url,
           account_value: fallbackCapital,
           total_balance: fallbackCapital,
+          available_balance: fallbackCapital,
           roi: 0,
           pnl: 0,
           total_pnl: 0,

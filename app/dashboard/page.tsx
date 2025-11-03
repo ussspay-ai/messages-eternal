@@ -69,12 +69,24 @@ const CustomTooltip = (props: any) => {
   // Get the dataKey of the first (and only visible) payload
   const dataKey = payload[0]?.dataKey as string
   
-  // Find the agent with matching ID
-  const agent = agents.find((a: Agent) => a.id === dataKey)
+  console.log(`🔍 [Tooltip] Looking for agent with dataKey: "${dataKey}"`)
+  console.log(`🔍 [Tooltip] Available agents:`, agents?.map((a: Agent) => ({ id: a.id, name: a.name, availableCash: a.availableCash })))
   
-  if (!agent) return null
+  // Find the agent with matching ID
+  const agent = agents?.find((a: Agent) => a.id === dataKey)
+  
+  if (!agent) {
+    console.log(`🔍 [Tooltip] ⚠️ Agent not found for dataKey: "${dataKey}", payload value: ${payload[0]?.value}`)
+    return null
+  }
 
-  const value = payload[0]?.value
+  // Use REAL-TIME availableCash from agent state (from /api/aster/account endpoint)
+  // This is the true available balance, NOT the equity (which includes unrealized PnL)
+  // Falls back to chart data if agent balance is not yet loaded
+  const realtimeBalance = agent.availableCash ?? payload[0]?.value ?? 0
+  
+  // Debug logging
+  console.log(`🔍 [Tooltip] ${agent.name} - availableCash: ${agent.availableCash}, payload value: ${payload[0]?.value}, using: ${realtimeBalance}`)
 
   return (
     <div
@@ -92,7 +104,7 @@ const CustomTooltip = (props: any) => {
         {agent.name}
       </div>
       <div style={{ color: "#000" }}>
-        Balance: ${(value as number)?.toLocaleString()}
+        Balance: ${(realtimeBalance as number)?.toLocaleString()}
       </div>
     </div>
   )
@@ -265,7 +277,7 @@ export default function DashboardPage() {
             color: generateColorForAgent(a.id),
             logo: a.logo || a.logo_url || "/placeholder.svg",
             accountValue: a.account_value,
-            availableCash: a.total_balance,
+            availableCash: a.available_balance || a.total_balance,
             isThinking: false,
             thinkingMessage: "",
           }))
@@ -358,11 +370,30 @@ export default function DashboardPage() {
 
       const positionsMap: Record<string, any[]> = {}
       const trades: any[] = []
+      const updatedAgents: Record<string, Partial<Agent>> = {}
 
       for (const agent of agents) {
         try {
+          // Fetch account info (includes real-time balance)
+          console.log(`\n🔄 [Dashboard] Fetching account info for ${agent.name} (${agent.id})...`)
+          const accountRes = await fetch(`/api/aster/account?agentId=${agent.id}`)
+          if (accountRes.ok) {
+            const accountInfo = await accountRes.json()
+            console.log(`✅ [Dashboard] Fetched account info for ${agent.name}:`, accountInfo)
+            const newBalance = Number(accountInfo.availableBalance) || 0
+            const newEquity = Number(accountInfo.equity) || 0
+            console.log(`💰 [Dashboard] ${agent.name} - availableBalance: ${accountInfo.availableBalance} (type: ${typeof accountInfo.availableBalance}) → converted to ${newBalance}`)
+            // Store updated balance for later update
+            updatedAgents[agent.id] = {
+              availableCash: newBalance, // True available balance (from account.availableBalance)
+              accountValue: newEquity,    // Total equity (wallet + unrealized PnL)
+            }
+          } else {
+            console.warn(`⚠️ [Dashboard] Account info failed for ${agent.id}, using cached balance`)
+          }
+
           // Fetch positions - try real API first, fallback to mock
-          console.log(`\n🔄 [Dashboard] Fetching positions for ${agent.name} (${agent.id})...`)
+          console.log(`🔄 [Dashboard] Fetching positions for ${agent.name} (${agent.id})...`)
           let posRes = await fetch(`/api/aster/positions?agentId=${agent.id}`)
           let positions = []
           
@@ -504,6 +535,25 @@ export default function DashboardPage() {
       setLivePositions(positionsMap)
       setLiveTrades(trades)
       setIsLoadingPositions(false)
+      
+      // Update agents state with fresh balance data for real-time tooltip
+      if (Object.keys(updatedAgents).length > 0) {
+        console.log(`📊 [Dashboard] updatedAgents object:`, updatedAgents)
+        setAgents((prevAgents) => {
+          const updatedList = prevAgents.map((agent) => {
+            const updated = {
+              ...agent,
+              ...(updatedAgents[agent.id] || {}),
+            }
+            if (updatedAgents[agent.id]) {
+              console.log(`💾 [Dashboard] Updated ${agent.name}: availableCash ${agent.availableCash} → ${updated.availableCash}`)
+            }
+            return updated
+          })
+          return updatedList
+        })
+        console.log(`✅ [Dashboard] Updated agents with fresh balances:`, Object.keys(updatedAgents))
+      }
       
       console.log(`✅ [Dashboard] State updated: livePositions set with ${Object.keys(positionsMap).length} agents`)
     }
@@ -799,41 +849,110 @@ export default function DashboardPage() {
     setXAxisFormatType(formatType)
   }, [chartData])
 
-  // Sync chart data with current agent balances in real-time
+  // Continuously refresh agent data to get updated account values
   useEffect(() => {
-    if (agents.length === 0 || allChartData.length === 0) return
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true") return
 
-    // Create a current data point with all agent account values
-    const currentPoint: any = {
-      time: new Date().toISOString(),
+    const refreshAgentData = async () => {
+      try {
+        const response = await fetch("/api/aster/agents-data")
+        if (!response.ok) return
+        
+        const data = await response.json()
+        if (data.agents && Array.isArray(data.agents)) {
+          // IMPORTANT: Preserve real-time balance updates from fetchLiveData
+          // Only update display fields, not the availableCash which is updated every 10s
+          setAgents((prevAgents) => {
+            const agentMap = new Map(data.agents.map((a: any) => [a.id, a]))
+            return prevAgents.map((prevAgent) => {
+              const freshData = agentMap.get(prevAgent.id) as any
+              if (!freshData) return prevAgent
+              
+              console.log(`[Dashboard] Refreshing display data for ${prevAgent.name}:`, {
+                accountValue: freshData.account_value,
+                roi: freshData.roi,
+                pnl: freshData.pnl,
+                preservedAvailableCash: prevAgent.availableCash,
+              })
+              
+              return {
+                ...prevAgent,
+                id: freshData.id,
+                name: freshData.name,
+                model: freshData.model,
+                pnl: freshData.pnl,
+                roi: freshData.roi,
+                status: freshData.roi > 0 ? "active" : "idle",
+                color: generateColorForAgent(freshData.id),
+                logo: freshData.logo || freshData.logo_url || "/placeholder.svg",
+                accountValue: freshData.account_value,
+                // PRESERVE availableCash from fetchLiveData (real-time balance)
+                // availableCash is updated every 10 seconds by fetchLiveData from /api/aster/account
+                // Do NOT override it here
+                // availableCash: prevAgent.availableCash is implicitly preserved
+              }
+            })
+          })
+          console.log("[Dashboard] Refreshed agent display data (preserved real-time balances)")
+        }
+      } catch (error) {
+        console.error("[Dashboard] Failed to refresh agent data:", error)
+      }
     }
 
-    agents.forEach((agent) => {
-      currentPoint[agent.id] = agent.accountValue || 50
-    })
+    // Refresh every 15 seconds to ensure we capture real balance changes
+    const refreshInterval = setInterval(refreshAgentData, 15 * 1000)
+    return () => clearInterval(refreshInterval)
+  }, [])
 
-    // Check if we should update or append
-    const lastPoint = allChartData[allChartData.length - 1]
-    if (!lastPoint) return
+  // Capture agent balances every 5 minutes and append to chart
+  useEffect(() => {
+    if (agents.length === 0) return
 
-    const lastPointTime = new Date(lastPoint.time).getTime()
-    const currentTime = new Date().getTime()
-    const timeDiffMs = currentTime - lastPointTime
+    // Immediately capture current balances
+    const captureBalances = () => {
+      const currentPoint: any = {
+        time: new Date().toISOString(),
+      }
 
-    // Update the last point if it's less than 10 seconds old, otherwise append new point
-    if (timeDiffMs < 10000) {
-      // Update existing point - merge current values with historical data
-      const updatedPoint = { ...lastPoint }
+      let hasChanges = false
       agents.forEach((agent) => {
-        updatedPoint[agent.id] = agent.accountValue || 50
+        const balance = agent.accountValue || 50
+        currentPoint[agent.id] = balance
+        // Check if this is different from the last point
+        if (allChartData.length > 0) {
+          const lastPoint = allChartData[allChartData.length - 1]
+          if (lastPoint[agent.id] !== balance) {
+            hasChanges = true
+          }
+        } else {
+          hasChanges = true
+        }
       })
-      const updatedData = [...allChartData.slice(0, -1), updatedPoint]
-      setAllChartData(updatedData)
-    } else {
-      // Append new point only if significant time has passed
-      setAllChartData([...allChartData, currentPoint])
+
+      // Only append if there are actual changes
+      if (hasChanges || allChartData.length === 0) {
+        setAllChartData((prevData) => {
+          // Append new point to existing data
+          return [...prevData, currentPoint]
+        })
+
+        console.log("[Dashboard] 📊 Captured agent balances for chart:", {
+          timestamp: currentPoint.time,
+          balances: Object.fromEntries(
+            agents.map(a => [a.name, `$${(a.accountValue || 50).toLocaleString()}`])
+          )
+        })
+      } else {
+        console.log("[Dashboard] ⏭️ Skipped capture - no balance changes detected")
+      }
     }
-  }, [agents])
+
+    // Set up 5-minute interval for capturing balances
+    const balanceCaptureInterval = setInterval(captureBalances, 5 * 60 * 1000) // 5 minutes
+
+    return () => clearInterval(balanceCaptureInterval)
+  }, [agents, allChartData])
 
   // Auto-refresh market prices every 30 seconds (matching cache TTL)
   useEffect(() => {

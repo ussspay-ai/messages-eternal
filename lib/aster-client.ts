@@ -153,10 +153,13 @@ export class AsterClient {
   ): Promise<T> {
     const timestamp = this.getTimestamp()
 
-    // Add timestamp to params
+    // Add timestamp and recvWindow to params
+    // recvWindow allows for clock drift between client and server (default 5000ms on most exchanges)
+    // We use 10000ms (10 seconds) to be more tolerant of clock skew
     const allParams: Record<string, any> = {
       ...params,
       timestamp,
+      recvWindow: 10000,
     }
 
     // Generate signature

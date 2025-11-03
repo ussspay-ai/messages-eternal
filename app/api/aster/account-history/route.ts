@@ -1,12 +1,13 @@
 /**
  * GET /api/aster/account-history
  * Fetch account value history for all agents (chart data)
- * Returns data at 5-minute intervals starting from $50 baseline per agent
+ * Returns ACTUAL historical data based on trade history at 5-minute intervals
  */
 
 import { AsterClient } from "@/lib/aster-client"
 import { getCache, setCache, CACHE_KEYS } from "@/lib/redis-client"
 import { getAllAgents, getAgentCredentials } from "@/lib/constants/agents"
+import { getAgentSnapshots, getLatestSnapshots } from "@/lib/supabase-client"
 import { NextResponse } from "next/server"
 
 interface HistoryDataPoint {
@@ -15,88 +16,92 @@ interface HistoryDataPoint {
 }
 
 const INITIAL_BALANCE = 50 // $50 starting balance per agent
-const HISTORY_POINTS = 288 // 24 hours worth of 5-minute intervals
 const INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 /**
- * Generate historical data by fetching current agent values
- * and building history with gradual changes from baseline
+ * Generate historical data from agent snapshots (already saved to Supabase)
+ * Snapshots are saved every 5 minutes with account values
  */
 async function generateAccountHistory(): Promise<HistoryDataPoint[]> {
   const agents = getAllAgents()
-  const data: HistoryDataPoint[] = []
   const now = new Date()
-  const agentAccountValues: Record<string, number> = {}
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  console.log(`[Account History] Fetching snapshots from ${twentyFourHoursAgo.toISOString()} to ${now.toISOString()}`)
+
+  // Fetch historical snapshots for all agents
+  const snapshotsByAgent: Record<string, any[]> = {}
   const agentCurrentValues: Record<string, number> = {}
 
-  // Fetch current account values for all agents
   for (const agent of agents) {
     try {
-      const credentials = getAgentCredentials(agent.id)
-      if (!credentials) {
+      // Get snapshots for this agent over last 24 hours
+      const snapshots = await getAgentSnapshots(agent.id, twentyFourHoursAgo, now)
+      snapshotsByAgent[agent.id] = snapshots
+      
+      // Get latest value
+      if (snapshots.length > 0) {
+        agentCurrentValues[agent.id] = snapshots[snapshots.length - 1].account_value
+        console.log(`[Account History] Agent ${agent.id}: ${snapshots.length} snapshots, latest value: ${agentCurrentValues[agent.id]}`)
+      } else {
         agentCurrentValues[agent.id] = INITIAL_BALANCE
-        continue
+        console.log(`[Account History] Agent ${agent.id}: No snapshots found, using initial balance`)
       }
-
-      const client = new AsterClient({
-        agentId: agent.id,
-        signer: credentials.signer, // Use agent's wallet address, not API key
-        apiSecret: undefined,
-        userAddress: credentials.signer, // Agent's wallet for REST API calls
-        userApiKey: credentials.userApiKey,
-        userApiSecret: credentials.userApiSecret,
-      })
-
-      const stats = await client.getAccountInfo()
-      agentCurrentValues[agent.id] = stats.equity || INITIAL_BALANCE
     } catch (error) {
-      console.error(`Error fetching current value for ${agent.id}:`, error)
+      console.error(`Error fetching snapshots for ${agent.id}:`, error)
+      snapshotsByAgent[agent.id] = []
       agentCurrentValues[agent.id] = INITIAL_BALANCE
     }
   }
 
-  // Initialize all agents at baseline
+  // If we have real snapshots, use them at 5-minute intervals
+  // Otherwise, generate synthetic intervals
+  const data: HistoryDataPoint[] = []
+
+  // Collect all snapshot timestamps to use as anchor points
+  const snapshotTimes = new Set<number>()
   agents.forEach((agent) => {
-    agentAccountValues[agent.id] = INITIAL_BALANCE
+    (snapshotsByAgent[agent.id] || []).forEach((snapshot) => {
+      snapshotTimes.add(new Date(snapshot.timestamp).getTime())
+    })
   })
 
-  // Generate historical data points going backwards from now
-  for (let i = HISTORY_POINTS - 1; i >= 0; i--) {
-    const pointTime = new Date(now.getTime() - i * INTERVAL_MS)
-    const timeStr = pointTime.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })
+  // Add 5-minute interval timestamps
+  let currentTime = new Date(twentyFourHoursAgo)
+  while (currentTime <= now) {
+    snapshotTimes.add(currentTime.getTime())
+    currentTime = new Date(currentTime.getTime() + INTERVAL_MS)
+  }
 
+  // Sort timestamps and generate data points
+  const sortedTimes = Array.from(snapshotTimes).sort((a, b) => a - b)
+
+  sortedTimes.forEach((timeMs) => {
+    const pointTime = new Date(timeMs)
     const dataPoint: HistoryDataPoint = {
-      time: timeStr,
+      time: pointTime.toISOString(),
     }
 
-    // For each agent, calculate value at this point in history
-    // This creates a gradual curve from baseline to current value
+    // For each agent, find the most recent snapshot at or before this time
     agents.forEach((agent) => {
-      const current = agentCurrentValues[agent.id] || INITIAL_BALANCE
-      const progress = i / HISTORY_POINTS // 0 to 1, representing time progression
+      const snapshots = snapshotsByAgent[agent.id] || []
       
-      // Generate a realistic curve with some volatility
-      const baseline = INITIAL_BALANCE
-      const target = current
-      const change = target - baseline
+      // Find snapshot at or before this time
+      let balance = INITIAL_BALANCE
+      for (let i = snapshots.length - 1; i >= 0; i--) {
+        if (new Date(snapshots[i].timestamp) <= pointTime) {
+          balance = snapshots[i].account_value
+          break
+        }
+      }
       
-      // Ease-in curve (agents start slow, then accelerate)
-      const easeProgress = progress * progress * (3 - 2 * progress)
-      
-      // Add some volatility (simulating real trading activity)
-      const volatility = Math.sin(i / 20) * Math.abs(change) * 0.1
-      
-      const value = baseline + change * easeProgress + volatility
-      dataPoint[agent.id] = Math.max(0, value) // Ensure non-negative
+      dataPoint[agent.id] = Math.max(0, balance)
     })
 
     data.push(dataPoint)
-  }
+  })
 
+  console.log(`[Account History] Generated ${data.length} data points from ${sortedTimes.length} unique timestamps`)
   return data
 }
 
@@ -125,29 +130,25 @@ export async function GET() {
 
     return NextResponse.json(historyData)
   } catch (error) {
-    console.error("Error fetching account history:", error)
-
-    // Fallback: return mock data if real fetch fails
+    console.error("Error generating account history:", error)
+    
+    // Fallback: return baseline data if real fetch fails
     const agents = getAllAgents()
     const data: HistoryDataPoint[] = []
     const now = new Date()
+    const HISTORY_POINTS = 288 // 24 hours of 5-minute intervals
 
     for (let i = HISTORY_POINTS - 1; i >= 0; i--) {
       const pointTime = new Date(now.getTime() - i * INTERVAL_MS)
-      const timeStr = pointTime.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
+      const timeStr = pointTime.toISOString()
 
       const dataPoint: HistoryDataPoint = {
         time: timeStr,
       }
 
       agents.forEach((agent) => {
-        const progress = i / HISTORY_POINTS
-        const randomWalk = Math.sin(i / 15 + Math.random()) * 5
-        dataPoint[agent.id] = INITIAL_BALANCE + progress * 20 + randomWalk
+        // Fallback: show all agents at their initial balance
+        dataPoint[agent.id] = INITIAL_BALANCE
       })
 
       data.push(dataPoint)
