@@ -27,7 +27,7 @@ export class BuyAndHoldStrategy extends BaseStrategy {
           action: "HOLD",
           quantity: 0,
           confidence: 1.0,
-          reason: `Holding ASTER position (${existingPosition?.quantity || 0} units). B&H strategy active.`,
+          reason: `Holding ${this.config.symbol} position (${existingPosition?.quantity || 0} units). B&H strategy active.`,
         }
       }
 
@@ -64,7 +64,9 @@ export class BuyAndHoldStrategy extends BaseStrategy {
         }
       }
 
-      this.hasInitialBought = true
+      // NOTE: hasInitialBought is set in the HOLD condition above (line 25)
+      // when existingPosition is detected, so no need to set it here.
+      // Only rely on existingPosition check to determine if we've bought.
 
       return {
         action: "BUY",
