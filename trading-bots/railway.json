@@ -3,7 +3,7 @@
     "builder": "dockerfile"
   },
   "deploy": {
-    "startCommand": "npm run start:all:prod",
+    "startCommand": "npm run start:agent5",
     "restartPolicyMaxRetries": 5,
     "restartPolicyWindowMs": 60000
   }
