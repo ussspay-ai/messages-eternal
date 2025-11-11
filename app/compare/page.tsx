@@ -113,23 +113,37 @@ export default function ComparePage() {
     const generateData = () => {
       const data = []
       const now = new Date()
+      // Initialize agent values
+      const agentValues: Record<string, number> = {}
+      selectedAgentData.forEach((agent) => {
+        agentValues[agent.id] = 10000
+      })
+
       for (let i = 30; i >= 0; i--) {
         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
-        data.push({
+        const dataPoint: any = {
           date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-          gpt5: 10000 + (Math.random() - 0.6) * 8000,
-          claude: 10000 + (Math.random() - 0.4) * 2000,
-          gemini: 10000 + (Math.random() - 0.7) * 7000,
-          grok: 10000 + (Math.random() - 0.4) * 2000,
-          deepseek: 10000 + (Math.random() + 0.1) * 3000,
-          qwen: 10000 + (Math.random() + 0.3) * 6000,
+        }
+
+        // Generate realistic performance data for each selected agent
+        selectedAgentData.forEach((agent) => {
+          const volatility = Math.random() - 0.5
+          agentValues[agent.id] = Math.max(5000, agentValues[agent.id] + volatility * 500)
+          dataPoint[agent.id] = agentValues[agent.id]
         })
+
+        data.push(dataPoint)
       }
       return data
     }
 
-    setComparisonData(generateData())
-  }, [])
+    if (selectedAgents.length > 0 && allAgents.length > 0) {
+      const agentsToCompare = allAgents.filter((a) => selectedAgents.includes(a.id))
+      if (agentsToCompare.length > 0) {
+        setComparisonData(generateData())
+      }
+    }
+  }, [selectedAgents, allAgents])
 
   // Fetch real risk metrics for selected agents
   useEffect(() => {
@@ -156,6 +170,8 @@ export default function ComparePage() {
     }
   }, [selectedAgents])
 
+  const selectedAgentData = allAgents.filter((a) => selectedAgents.includes(a.id))
+
   const toggleAgent = (agentId: string) => {
     if (selectedAgents.includes(agentId)) {
       setSelectedAgents(selectedAgents.filter((id) => id !== agentId))
@@ -163,8 +179,6 @@ export default function ComparePage() {
       setSelectedAgents([...selectedAgents, agentId])
     }
   }
-
-  const selectedAgentData = allAgents.filter((a) => selectedAgents.includes(a.id))
 
   // Get real risk metrics from API data
   const getMetric = (agentId: string, metric: string, fallback: number = 0) => {
