@@ -16,7 +16,45 @@ import {
   Legend,
   Bar,
   BarChart,
+  TooltipProps,
 } from "recharts"
+
+// Custom Tooltip Component
+interface TooltipEntry {
+  name?: string
+  value?: number | string
+  color?: string
+  dataKey?: string
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: TooltipEntry[]
+  label?: string | number
+  agentData?: Agent[]
+}
+
+const ChartTooltip = ({ active, payload, label, agentData }: CustomTooltipProps) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white border-2 border-black p-2 rounded-none">
+        <p className="text-[10px] font-mono font-bold mb-1">{label}</p>
+        {payload.map((entry: TooltipEntry, index: number) => {
+          // Find the agent matching this entry's dataKey (agent ID)
+          const agent = agentData?.find((a) => a.id === entry.dataKey)
+          const displayValue = agent?.accountValue || entry.value
+          
+          return (
+            <p key={index} style={{ color: entry.color }} className="text-[10px] font-mono">
+              {entry.name}: ${(displayValue as number).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+          )
+        })}
+      </div>
+    )
+  }
+  return null
+}
 
 interface Agent {
   id: string
@@ -273,15 +311,7 @@ export default function ComparePage() {
                       tickLine={false}
                       tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "2px solid black",
-                        borderRadius: "0",
-                        fontSize: "10px",
-                        fontFamily: "Space Mono",
-                      }}
-                    />
+                    <Tooltip content={(props) => <ChartTooltip {...props} agentData={selectedAgentData} />} />
                     <Legend wrapperStyle={{ fontSize: "10px", fontFamily: "Space Mono" }} />
                     {selectedAgentData.map((agent) => (
                       <Line
