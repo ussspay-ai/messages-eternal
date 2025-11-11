@@ -6,6 +6,18 @@
 
 import crypto from "crypto"
 
+/**
+ * Aster Exchange Fee Structure:
+ * - Maker Fee: 0.01% (providing liquidity)
+ * - Taker Fee: 0.035% (taking liquidity)
+ */
+const ASTER_FEE_RATES = {
+  maker: 0.0001, // 0.01%
+  taker: 0.00035, // 0.035%
+} as const
+
+const COMMISSION_ASSET = "USDT"
+
 interface AsterConfig {
   agentId: string // Agent ID string (e.g., "claude_arbitrage")
   signer: string // Signer address for authentication (agent wallet)
@@ -120,6 +132,27 @@ export class AsterClient {
     console.log(`\n[AsterClient] Initialized for agent: ${config.agentId}`)
     console.log(`[AsterClient] Trading from signer wallet: ${config.signer}`)
     console.log(`[AsterClient] Using agent-specific API credentials\n`)
+  }
+
+  /**
+   * Calculate trading fee based on Aster's fee structure
+   * The Aster API doesn't return commission, so we calculate it locally
+   * using the isBuyerMaker flag (true = maker, false = taker)
+   */
+  private calculateTradeCommission(trade: any): { commission: number; maker: boolean } {
+    const price = parseFloat(trade.price || 0)
+    const qty = parseFloat(trade.qty || 0)
+    const tradeAmount = price * qty
+
+    // Determine if maker or taker based on isBuyerMaker flag
+    const isMaker = trade.isBuyerMaker === true
+    const feeRate = isMaker ? ASTER_FEE_RATES.maker : ASTER_FEE_RATES.taker
+    const commission = tradeAmount * feeRate
+
+    return {
+      commission: Math.round(commission * 1000000) / 1000000, // Round to 6 decimals
+      maker: isMaker,
+    }
   }
 
   /**
@@ -346,6 +379,7 @@ export class AsterClient {
 
   /**
    * Get trade history from /fapi/v1/trades endpoint
+   * Enriches trades with calculated commissions based on Aster's fee structure
    */
   async getTrades(symbol?: string, limit: number = 100): Promise<AsterTradesResponse> {
     try {
@@ -354,19 +388,55 @@ export class AsterClient {
         params.symbol = symbol
       }
 
-      const trades = await this.request<AsterTrade[]>("GET", "/fapi/v1/trades", params)
+      const rawTrades = await this.request<any[]>("GET", "/fapi/v1/trades", params)
+      
+      // Debug: Log first trade structure to see what fields are available
+      if (rawTrades.length > 0) {
+        console.log(`[AsterClient] Sample raw trade from API (first of ${rawTrades.length}):`, JSON.stringify(rawTrades[0], null, 2))
+      }
+
+      // Enrich trades with calculated commissions
+      const trades: AsterTrade[] = rawTrades.map((rawTrade) => {
+        const { commission, maker } = this.calculateTradeCommission(rawTrade)
+        
+        return {
+          symbol: rawTrade.symbol || "",
+          id: rawTrade.id?.toString() || "",
+          orderId: rawTrade.orderId?.toString() || "",
+          side: rawTrade.side || "BUY",
+          price: parseFloat(rawTrade.price || 0),
+          qty: parseFloat(rawTrade.qty || 0),
+          realizedPnl: parseFloat(rawTrade.realizedPnl || 0),
+          marginAsset: rawTrade.marginAsset || COMMISSION_ASSET,
+          quoteQty: parseFloat(rawTrade.quoteQty || 0),
+          commission, // Calculated commission
+          commissionAsset: COMMISSION_ASSET,
+          time: rawTrade.time || 0,
+          positionSide: rawTrade.positionSide || "BOTH",
+          buyer: rawTrade.buyer || false,
+          maker, // Calculated from isBuyerMaker flag
+        }
+      })
 
       // Calculate win rate and PnL summary
       let winCount = 0
       let totalTrades = trades.length
       let netPnl = 0
+      let totalFees = 0
 
       for (const trade of trades) {
         if (trade.realizedPnl > 0) winCount++
         netPnl += trade.realizedPnl
+        totalFees += trade.commission
       }
 
       const winRate = totalTrades > 0 ? winCount / totalTrades : 0
+
+      console.log(`[AsterClient] Trades enriched with fees:`, {
+        totalTrades,
+        totalFees: Math.round(totalFees * 100) / 100,
+        avgFeePerTrade: Math.round((totalFees / totalTrades) * 1000000) / 1000000,
+      })
 
       return {
         trades,

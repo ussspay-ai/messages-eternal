@@ -385,6 +385,9 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
           }
           fees += trade.commission || 0
         })
+        console.log(`[Leaderboard] ${agent.id}: Calculated from ${tradesArray.length} trades - Win Rate: ${winRate.toFixed(1)}%, Fees: $${fees.toFixed(2)}, Biggest Win: $${biggestWin.toFixed(2)}, Biggest Loss: $${biggestLoss.toFixed(2)}`)
+      } else {
+        console.log(`[Leaderboard] ⚠️ ${agent.id}: No trades fetched (tradesArray length = 0)`)
       }
 
       console.log(`✅ [Leaderboard] Fetched data for ${agent.id}: account value $${currentAccountValue.toFixed(2)}`)
