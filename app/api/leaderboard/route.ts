@@ -195,17 +195,71 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
       availableBalance: agent.available_balance || agent.account_value || 0,
       returnPercent: agent.roi || 0,
       totalPnL: agent.total_pnl || 0,
-      fees: 0, // Not available in agents-data
-      winRate: 0, // Not available in agents-data
-      biggestWin: 0, // Not available in agents-data
-      biggestLoss: 0, // Not available in agents-data
-      sharpe: 0, // Not available in agents-data
-      trades: 0, // Not available in agents-data
+      fees: 0,
+      winRate: 0,
+      biggestWin: 0,
+      biggestLoss: 0,
+      sharpe: 0,
+      trades: 0,
       color: AGENT_COLORS[agent.id] || "#999999",
       activePositions: agent.open_positions || 0,
       status: "active" as const,
       lastUpdate: agent.timestamp || new Date().toISOString(),
     }))
+
+    // Fetch trades for each agent to calculate win rate and other metrics
+    for (const agent of agents) {
+      try {
+        const credentials = getAgentCredentials(agent.id)
+        if (!credentials) {
+          console.warn(`⚠️ [Leaderboard] No credentials found for agent ${agent.id}`)
+          continue
+        }
+
+        console.log(`[Leaderboard] Fetching trades for ${agent.id}...`)
+
+        const client = new AsterClient({
+          agentId: agent.id,
+          signer: credentials.signer,
+          userAddress: credentials.user,
+          userApiKey: credentials.userApiKey,
+          userApiSecret: credentials.userApiSecret,
+        })
+
+        const tradesResponse = await client.getTrades()
+        console.log(`[Leaderboard] Got ${tradesResponse.trades.length} trades for ${agent.id}`)
+        
+        let fees = 0
+        let biggestWin = 0
+        let biggestLoss = 0
+        let winRate = 0
+
+        if (tradesResponse.trades.length > 0) {
+          const winningTrades = tradesResponse.trades.filter((t) => t.realizedPnl > 0)
+          winRate = (winningTrades.length / tradesResponse.trades.length) * 100
+          console.log(`[Leaderboard] ${agent.id} win rate calculation: ${winningTrades.length}/${tradesResponse.trades.length} = ${winRate}%`)
+
+          tradesResponse.trades.forEach((trade) => {
+            if (trade.realizedPnl > 0 && trade.realizedPnl > biggestWin) {
+              biggestWin = trade.realizedPnl
+            }
+            if (trade.realizedPnl < 0 && trade.realizedPnl < biggestLoss) {
+              biggestLoss = trade.realizedPnl
+            }
+            fees += trade.commission || 0
+          })
+        }
+
+        agent.winRate = Math.round(winRate * 10) / 10
+        agent.trades = tradesResponse.trades.length
+        agent.fees = Math.round(fees * 100) / 100
+        agent.biggestWin = Math.round(biggestWin * 100) / 100
+        agent.biggestLoss = Math.round(biggestLoss * 100) / 100
+        console.log(`[Leaderboard] ✅ ${agent.id}: WR=${agent.winRate}%, Fees=$${agent.fees}, Trades=${agent.trades}`)
+      } catch (error) {
+        console.error(`❌ [Leaderboard] Error fetching trades for ${agent.id}:`, error instanceof Error ? error.message : error)
+      }
+    }
 
     console.log(`✅ Fetched ${agents.length} agents from agents-data endpoint`)
     return agents

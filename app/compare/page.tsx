@@ -154,7 +154,7 @@ export default function ComparePage() {
       // Initialize agent values
       const agentValues: Record<string, number> = {}
       selectedAgentData.forEach((agent) => {
-        agentValues[agent.id] = 10000
+        agentValues[agent.id] = 50
       })
 
       for (let i = 30; i >= 0; i--) {
@@ -166,7 +166,7 @@ export default function ComparePage() {
         // Generate realistic performance data for each selected agent
         selectedAgentData.forEach((agent) => {
           const volatility = Math.random() - 0.5
-          agentValues[agent.id] = Math.max(5000, agentValues[agent.id] + volatility * 500)
+          agentValues[agent.id] = Math.max(20, Math.min(200, agentValues[agent.id] + volatility * 3))
           dataPoint[agent.id] = agentValues[agent.id]
         })
 
@@ -309,7 +309,8 @@ export default function ComparePage() {
                       stroke="#666"
                       style={{ fontSize: "10px", fontFamily: "Space Mono" }}
                       tickLine={false}
-                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `$${value.toFixed(0)}`}
                     />
                     <Tooltip content={(props) => <ChartTooltip {...props} agentData={selectedAgentData} />} />
                     <Legend wrapperStyle={{ fontSize: "10px", fontFamily: "Space Mono" }} />
@@ -397,14 +398,6 @@ export default function ComparePage() {
                       {selectedAgentData.map((agent) => (
                         <td key={agent.id} className="py-3 px-2 text-center">
                           {(agent.sharpe || 0).toFixed(3)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <td className="py-3 px-2 font-bold">Total Trades</td>
-                      {selectedAgentData.map((agent) => (
-                        <td key={agent.id} className="py-3 px-2 text-center">
-                          {agent.trades}
                         </td>
                       ))}
                     </tr>
@@ -520,9 +513,9 @@ export default function ComparePage() {
                   <BarChart
                     data={selectedAgentData.map((agent) => ({
                       name: agent.name.split(" ")[0],
-                      "Return %": agent.returnPercent,
-                      "Win Rate": agent.winRate,
-                      "Sharpe Ratio": agent.sharpe * 10,
+                      "Return %": Math.max(0, agent.returnPercent || 0),
+                      "Win Rate": Math.max(0, agent.winRate || 0),
+                      "Sharpe Ratio": Math.max(0, (agent.sharpe || 0) * 10),
                     }))}
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                   >

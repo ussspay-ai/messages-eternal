@@ -158,7 +158,6 @@ export default function LeaderboardPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Biggest Win</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Biggest Loss</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Sharpe</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Trades</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,7 +203,6 @@ export default function LeaderboardPage() {
                       -${formatNumber(Math.abs(agent.biggestLoss || 0))}
                     </td>
                     <td className="px-3 py-3 border-t border-gray-200">{formatDecimal(agent.sharpe, 3)}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{agent.trades || 0}</td>
                   </tr>
                 ))}
               </tbody>

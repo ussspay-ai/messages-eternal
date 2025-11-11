@@ -40,6 +40,21 @@ export async function GET() {
         const positions = await client.getPositions()
         const activePositions = positions.positions.filter((p: any) => p.positionAmt !== 0).length
 
+        // Get trades and calculate win rate
+        let winRate = 0
+        let tradesCount = 0
+        try {
+          const tradesResponse = await client.getTrades()
+          tradesCount = tradesResponse.trades.length
+          
+          if (tradesResponse.trades.length > 0) {
+            const winningTrades = tradesResponse.trades.filter((t) => t.realizedPnl > 0)
+            winRate = (winningTrades.length / tradesResponse.trades.length) * 100
+          }
+        } catch (tradeError) {
+          console.warn(`[SaveSnapshots] Could not fetch trades for ${agent.id}:`, tradeError)
+        }
+
         // Create snapshot
         const snapshot = {
           agent_id: agent.id,
@@ -47,8 +62,8 @@ export async function GET() {
           account_value: Math.round(stats.equity * 100) / 100,
           total_pnl: Math.round((stats.total_pnl || 0) * 100) / 100,
           return_percent: Math.round((stats.total_roi || 0) * 100) / 100,
-          win_rate: 0,
-          trades_count: 0,
+          win_rate: Math.round(winRate * 10) / 10,
+          trades_count: tradesCount,
           sharpe_ratio: 0,
           active_positions: activePositions,
         }
