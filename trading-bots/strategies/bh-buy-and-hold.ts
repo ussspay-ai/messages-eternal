@@ -23,11 +23,23 @@ export class BuyAndHoldStrategy extends BaseStrategy {
       // If we already bought, just hold
       if (this.hasInitialBought || existingPosition) {
         this.hasInitialBought = true
+        const holdQuantity = existingPosition?.quantity || 0
         return {
           action: "HOLD",
           quantity: 0,
           confidence: 1.0,
-          reason: `Holding ${this.config.symbol} position (${existingPosition?.quantity || 0} units). B&H strategy active.`,
+          reason: `Holding ${this.config.symbol} position (${holdQuantity.toFixed(8)} units). B&H strategy active.`,
+        }
+      }
+
+      // Double-check: if we have no position but hasInitialBought is true, verify there are no filled buy orders
+      // This prevents duplicate buys after agent restarts or API sync delays
+      if (this.hasInitialBought && !existingPosition) {
+        return {
+          action: "HOLD",
+          quantity: 0,
+          confidence: 1.0,
+          reason: `Previous BUY order detected but position not yet visible in account. Awaiting API sync...`,
         }
       }
 
@@ -65,23 +77,43 @@ export class BuyAndHoldStrategy extends BaseStrategy {
         }
       }
 
-      // Add 1% markup to price for BUY orders to ensure DEX tick size validation
-      // (BUY orders should be above market price for proper order book positioning)
-      const priceWithMarkup = currentPrice * 1.01
+      // Conservative price markup based on asset price
+      // The Aster DEX has strict spread constraints - buy prices can't exceed market by too much
+      // Use very small markups to stay within DEX acceptable range
+      let markupPercentage = 0.1 // Start with 0.1% for most assets
+      
+      if (currentPrice > 500) {
+        markupPercentage = 0.5 // 0.5% for very expensive assets like BNB (>$500)
+      } else if (currentPrice > 200) {
+        markupPercentage = 0.3 // 0.3% for expensive assets ($200-$500)
+      } else if (currentPrice > 100) {
+        markupPercentage = 0.2 // 0.2% for moderately expensive assets ($100-$200)
+      } else if (currentPrice > 50) {
+        markupPercentage = 0.15 // 0.15% for lower-priced assets ($50-$100)
+      }
+      
+      // Add markup to price for BUY orders - use minimal markup to respect DEX spread limits
+      const priceWithMarkup = currentPrice * (1 + markupPercentage / 100)
+      // Use standard rounding to next cent, not ceiling (ceiling was causing violations)
       const priceRounded = Math.round(priceWithMarkup * 100) / 100
 
       // Mark that we've initiated the buy - prevents duplicate BUY signals
       // Even if the order is still pending (not filled), we won't generate another BUY
       this.hasInitialBought = true
 
+      // For very expensive assets (>$500), use MARKET order to avoid tick size validation issues
+      // For cheaper assets, use LIMIT orders with small markup
+      const orderType = currentPrice > 500 ? "MARKET" : "LIMIT"
+      const orderPrice = orderType === "MARKET" ? undefined : priceRounded
+      const priceDisplay = orderType === "MARKET" ? "market price" : `$${priceRounded.toFixed(2)}`
+      const markupDisplay = orderType === "MARKET" ? "" : ` (+${markupPercentage}% markup for tick size)`
+      
       return {
         action: "BUY",
         quantity: quantityRounded,
-        price: priceRounded,
+        price: orderPrice,
         confidence: 1.0,
-        reason: `Buy & Hold: Purchasing ${quantityRounded} token(s) (~$${buyAmountAdjusted.toFixed(2)}) at $${priceRounded.toFixed(
-          2
-        )}. No stop loss or take profit. Holding indefinitely.`,
+        reason: `Buy & Hold: Purchasing ${quantityRounded} token(s) (~$${buyAmountAdjusted.toFixed(2)}) at ${priceDisplay}${markupDisplay}. Holding indefinitely. 🎯`,
       }
     } catch (error) {
       console.error("[Buy & Hold] Error generating signal:", error)

@@ -178,15 +178,22 @@ export abstract class BaseStrategy {
       let orderId: string | undefined
 
       if (signal.action === "BUY") {
-        // Place BUY order
-        const order = await this.client.placeOrder({
+        // Place BUY order - use MARKET if no price specified, otherwise LIMIT
+        const orderType = signal.price ? "LIMIT" : "MARKET"
+        const orderParams: any = {
           symbol: this.config.symbol,
           side: "BUY",
-          type: "LIMIT",
+          type: orderType,
           quantity: signal.quantity,
-          price: signal.price || 0,
-          timeInForce: "GTC",
-        })
+        }
+        
+        // Only include price and timeInForce for LIMIT orders
+        if (orderType === "LIMIT") {
+          orderParams.price = signal.price || 0
+          orderParams.timeInForce = "GTC"
+        }
+        
+        const order = await this.client.placeOrder(orderParams)
 
         orderId = order.orderId
         console.log(`[${this.config.name}] BUY Order placed:`, orderId)
@@ -223,15 +230,22 @@ export abstract class BaseStrategy {
           }
         }
       } else if (signal.action === "SELL") {
-        // Place SELL order
-        const order = await this.client.placeOrder({
+        // Place SELL order - use MARKET if no price specified, otherwise LIMIT
+        const orderType = signal.price ? "LIMIT" : "MARKET"
+        const orderParams: any = {
           symbol: this.config.symbol,
           side: "SELL",
-          type: "LIMIT",
+          type: orderType,
           quantity: signal.quantity,
-          price: signal.price || 0,
-          timeInForce: "GTC",
-        })
+        }
+        
+        // Only include price and timeInForce for LIMIT orders
+        if (orderType === "LIMIT") {
+          orderParams.price = signal.price || 0
+          orderParams.timeInForce = "GTC"
+        }
+        
+        const order = await this.client.placeOrder(orderParams)
 
         orderId = order.orderId
         console.log(`[${this.config.name}] SELL Order placed:`, orderId)
