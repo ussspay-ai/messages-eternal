@@ -15,9 +15,9 @@ export class BuyAndHoldStrategy extends BaseStrategy {
     positions: any[]
   ): Promise<TradeSignal> {
     try {
-      // Check if we already have a position
+      // Check if we already have a position with quantity > 0
       const existingPosition = positions.find(
-        (p) => p.symbol === this.config.symbol
+        (p) => p.symbol === this.config.symbol && p.quantity > 0
       )
 
       // If we already bought, just hold
@@ -45,15 +45,16 @@ export class BuyAndHoldStrategy extends BaseStrategy {
       let buyAmountAdjusted = this.buyAmount
       let quantity = buyAmountAdjusted / currentPrice
       
-      // For high-price assets, ensure at least 1 token by increasing buy amount
-      if (quantity < 1 && currentPrice > 50) {
-        // Buy at least 1 token, scaled by price
-        buyAmountAdjusted = Math.min(currentPrice * 1.2, 250) // Buy 1-1.2 tokens (or max $250)
+      // For high-price assets, scale up the buy amount to get at least 0.01 tokens
+      if (quantity < 0.01 && currentPrice > 50) {
+        // Scale up to get meaningful holdings even for expensive assets
+        buyAmountAdjusted = Math.min(currentPrice * 0.5, 500) // Up to $500 for very expensive assets
         quantity = buyAmountAdjusted / currentPrice
       }
       
-      // Round DOWN to whole numbers (0 decimals) for asset precision compatibility
-      const quantityRounded = Math.floor(quantity)
+      // Round to 2 decimal places - respects Aster DEX precision limits for most assets
+      // This gives us fractional quantities while staying within API constraints
+      const quantityRounded = Math.round(quantity * 100) / 100
 
       if (!Number.isFinite(quantityRounded) || quantityRounded <= 0) {
         return {
@@ -64,16 +65,21 @@ export class BuyAndHoldStrategy extends BaseStrategy {
         }
       }
 
-      // NOTE: hasInitialBought is set in the HOLD condition above (line 25)
-      // when existingPosition is detected, so no need to set it here.
-      // Only rely on existingPosition check to determine if we've bought.
+      // Add 1% markup to price for BUY orders to ensure DEX tick size validation
+      // (BUY orders should be above market price for proper order book positioning)
+      const priceWithMarkup = currentPrice * 1.01
+      const priceRounded = Math.round(priceWithMarkup * 100) / 100
+
+      // Mark that we've initiated the buy - prevents duplicate BUY signals
+      // Even if the order is still pending (not filled), we won't generate another BUY
+      this.hasInitialBought = true
 
       return {
         action: "BUY",
         quantity: quantityRounded,
-        price: currentPrice,
+        price: priceRounded,
         confidence: 1.0,
-        reason: `Buy & Hold: Purchasing ${quantityRounded} token(s) (~$${buyAmountAdjusted.toFixed(2)}) at $${currentPrice.toFixed(
+        reason: `Buy & Hold: Purchasing ${quantityRounded} token(s) (~$${buyAmountAdjusted.toFixed(2)}) at $${priceRounded.toFixed(
           2
         )}. No stop loss or take profit. Holding indefinitely.`,
       }
