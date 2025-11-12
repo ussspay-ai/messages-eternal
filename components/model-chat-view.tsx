@@ -3,8 +3,30 @@
 import { useState, useEffect, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { motion, AnimatePresence } from "framer-motion"
-import { Zap, TrendingUp, TrendingDown, AlertCircle, BarChart3, Bell } from "lucide-react"
+import { Zap, TrendingUp, TrendingDown, AlertCircle, BarChart3, Bell, DollarSign, Activity } from "lucide-react"
 import Image from "next/image"
+
+interface SymbolPerformance {
+  symbol: string
+  currentPrice: number
+  unrealizedPnL: number
+  unrealizedROI: number
+  positionSize: number
+  side: 'LONG' | 'SHORT'
+  entryPrice: number
+}
+
+interface AgentRealtimeContext {
+  agentId: string
+  agentName: string
+  totalUnrealizedPnL: number
+  totalUnrealizedROI: number
+  openPositionCount: number
+  tradedSymbols: SymbolPerformance[]
+  accountValue: number
+  equity: number
+  timestamp: string
+}
 
 interface ChatMessage {
   id: string
@@ -12,8 +34,10 @@ interface ChatMessage {
   agentName: string
   timestamp: string
   content: string
-  type: "analysis" | "trade_signal" | "market_update" | "risk_management"
+  type: "analysis" | "trade_signal" | "market_update" | "risk_management" | "reasoning"
   confidence?: number
+  symbol?: string
+  unrealizedPnL?: number
 }
 
 interface Agent {
@@ -26,11 +50,13 @@ interface Agent {
 interface ModelChatViewProps {
   agents: Agent[]
   messages: Record<string, ChatMessage[]>
+  realtimeContext?: AgentRealtimeContext | AgentRealtimeContext[] | null
   newMessageCount?: number
   onClearNewMessages?: () => void
 }
 
-const getTypeIcon = (type: string) => {
+const getTypeIcon = (type: string | undefined) => {
+  if (!type) return <Zap className="w-3 h-3" />
   switch (type) {
     case "trade_signal":
       return <Zap className="w-3 h-3" />
@@ -45,11 +71,13 @@ const getTypeIcon = (type: string) => {
   }
 }
 
-const getTypeLabel = (type: string) => {
+const getTypeLabel = (type: string | undefined) => {
+  if (!type) return "UNKNOWN"
   return type.replace(/_/g, " ").toUpperCase()
 }
 
-const getTypeColor = (type: string): string => {
+const getTypeColor = (type: string | undefined): string => {
+  if (!type) return "text-gray-500 bg-gray-500/10"
   switch (type) {
     case "trade_signal":
       return "text-yellow-500 bg-yellow-500/10"
@@ -67,13 +95,24 @@ const getTypeColor = (type: string): string => {
 export function ModelChatView({ 
   agents, 
   messages,
+  realtimeContext,
   newMessageCount = 0,
   onClearNewMessages 
 }: ModelChatViewProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [allMessages, setAllMessages] = useState<ChatMessage[]>([])
+  const [showContext, setShowContext] = useState(true)
   const scrollViewportRef = useRef<HTMLDivElement>(null)
   const previousMessageCountRef = useRef(0)
+
+  // Get context for selected agent
+  const selectedContext = selectedAgent && realtimeContext
+    ? Array.isArray(realtimeContext)
+      ? realtimeContext.find(c => c.agentId === selectedAgent)
+      : realtimeContext.agentId === selectedAgent ? realtimeContext : null
+    : selectedAgent && Array.isArray(realtimeContext)
+      ? realtimeContext.find(c => c.agentId === selectedAgent)
+      : null
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -134,6 +173,71 @@ export function ModelChatView({
           <span className="text-[10px] text-muted-foreground">{displayMessages.length}/30 messages</span>
         </div>
       </div>
+
+      {/* Realtime Context Panel */}
+      {showContext && selectedContext && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="mb-3 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 flex-shrink-0"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Activity className="w-3 h-3 text-blue-400" />
+              <span className="text-[9px] font-bold uppercase text-blue-400">Realtime Performance</span>
+            </div>
+            <button
+              onClick={() => setShowContext(!showContext)}
+              className="text-[8px] text-muted-foreground hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            {/* Portfolio Summary */}
+            <div className="grid grid-cols-3 gap-2 text-[8px]">
+              <div className="bg-black/20 rounded px-2 py-1">
+                <span className="text-muted-foreground">Account</span>
+                <p className={`font-mono font-bold ${selectedContext.totalUnrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ${selectedContext.accountValue.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-black/20 rounded px-2 py-1">
+                <span className="text-muted-foreground">U/R PnL</span>
+                <p className={`font-mono font-bold ${selectedContext.totalUnrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {selectedContext.totalUnrealizedPnL >= 0 ? '+' : ''}{selectedContext.totalUnrealizedPnL.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-black/20 rounded px-2 py-1">
+                <span className="text-muted-foreground">Positions</span>
+                <p className="font-mono font-bold text-white">{selectedContext.openPositionCount}</p>
+              </div>
+            </div>
+
+            {/* Active Symbols */}
+            {selectedContext.tradedSymbols.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pt-1 pb-1">
+                {selectedContext.tradedSymbols.map((symbol) => (
+                  <div
+                    key={symbol.symbol}
+                    className="flex-shrink-0 px-2 py-1 rounded border border-white/10 bg-white/5 text-[8px] font-mono"
+                  >
+                    <p className="font-bold text-white">{symbol.symbol}</p>
+                    <p className={symbol.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}>
+                      {symbol.unrealizedPnL >= 0 ? '+' : ''}{symbol.unrealizedPnL.toFixed(2)}
+                    </p>
+                    <p className="text-muted-foreground text-[7px]">
+                      ${symbol.currentPrice.toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Agent Filter */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-2 flex-shrink-0">
@@ -268,7 +372,8 @@ export function ModelChatView({
       {/* Info Footer */}
       <div className="mt-4 pt-3 border-t border-border text-[8px] text-muted-foreground space-y-1 flex-shrink-0">
         <p> Agents: Real-time trading analysis synced with {selectedAgent ? 'selected agent' : 'all agents'}</p>
-        <p> Updates: Every 5 minutes with latest market signals</p>
+        <p> Messages: Updated every 10 seconds</p>
+        <p> Performance: {selectedContext ? `Updated ${new Date(selectedContext.timestamp).toLocaleTimeString()}` : 'Select an agent to see performance'}</p>
       </div>
     </div>
   )

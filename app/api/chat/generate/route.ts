@@ -1,14 +1,20 @@
 /**
  * Chat Generation API Endpoint
- * Generates and stores agent chat messages
+ * Generates and stores agent chat messages to Supabase (no Redis)
  * Called every 15 minutes to generate 2 messages per agent
  * 
- * Message Expiration: Keep max 100 total messages (20 per agent on average)
+ * Message Expiration: Auto-cleanup by /api/chat/messages (removes older than 10 min)
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { generateAllAgentResponses } from "@/lib/chat-engine"
-import { setCache, getCache, CACHE_KEYS, deleteCache } from "@/lib/redis-client"
+import { createClient } from "@supabase/supabase-js"
+import { broadcastAgentMessage, broadcastMessageToAll } from "@/app/api/chat/stream/route"
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_KEY || ""
+)
 
 interface ChatMessage {
   id: string
@@ -30,26 +36,7 @@ interface Agent {
   recentTrades?: number
 }
 
-/**
- * Remove old messages: Keep only recent N messages
- * Maintains max 100 messages total with ~20 messages per agent on average
- * (2 messages per agent per 15 minutes = 10 messages every 15 min)
- */
-function removeOldMessages(messages: any[], maxMessages: number = 100): any[] {
-  if (messages.length <= maxMessages) {
-    return messages
-  }
-  
-  // Sort by creation time (oldest first), then remove oldest
-  const sorted = [...messages].sort((a, b) => {
-    const timeA = a.createdAt ?? new Date(a.timestamp).getTime()
-    const timeB = b.createdAt ?? new Date(b.timestamp).getTime()
-    return timeA - timeB
-  })
-  
-  // Keep only the most recent maxMessages
-  return sorted.slice(-maxMessages)
-}
+
 
 /**
  * Fetch current agent data from Aster API
@@ -118,35 +105,79 @@ export async function POST(request: NextRequest) {
     
     console.log(`[Chat/Generate] Generated ${newMessages.length} new messages (2 per agent)`)
 
-    // Add createdAt timestamp to new messages with slight delays between rounds
-    const now = Date.now()
-    const messagesWithTimestamp = newMessages.map((msg, idx) => ({
-      ...msg,
-      createdAt: idx < agents.length ? now : now + 100, // 100ms offset for round 2
-    }))
-
-    // Store in Redis with 1-hour TTL
-    const cacheKey = CACHE_KEYS.market("chat:messages")
-    const existingMessages = (await getCache<ChatMessage[]>(cacheKey)) || []
+    // Broadcast messages to real-time connected clients AND store to Supabase for persistence
+    const messagesToInsert: any[] = []
     
-    // Combine new and existing messages
-    let allMessages = [...messagesWithTimestamp, ...existingMessages]
-    
-    // Apply expiration: Keep max 100 messages
-    // With 10 messages every 15 minutes: ~100 messages = 150 minutes of history
-    allMessages = removeOldMessages(allMessages, 100)
+    for (const msg of newMessages) {
+      // Broadcast immediately to SSE subscribers
+      broadcastAgentMessage(msg.agentId, msg)
 
-    // Cache with 1-hour TTL to survive temporary Redis outages
-    await setCache(cacheKey, allMessages, { ttl: 3600 })
+      // Also prepare for Supabase persistence
+      messagesToInsert.push({
+        id: msg.id,
+        agent_id: msg.agentId,
+        agent_name: msg.agentName,
+        message_type: msg.type,
+        content: msg.content,
+        confidence: msg.confidence || 0.5,
+        timestamp: msg.timestamp,
+      })
+    }
 
-    console.log(`[Chat/Generate] Successfully cached ${allMessages.length} total messages`)
+    // Store to Supabase - SYNCHRONOUSLY so we can catch errors
+    let insertedCount = 0
+    try {
+      console.log(`[Chat/Generate] Attempting to insert ${messagesToInsert.length} messages...`)
+      console.log(`[Chat/Generate] First message sample:`, JSON.stringify(messagesToInsert[0], null, 2))
+      
+      const { data, error: insertError } = await supabase
+        .from('agent_chat_messages')
+        .insert(messagesToInsert)
+        .select()
+
+      if (insertError) {
+        console.error(`[Chat/Generate] ❌ Failed to insert messages to Supabase:`, {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Database insert failed: ${insertError.message}`,
+            messagesGenerated: newMessages.length,
+            insertedCount: 0,
+          },
+          { status: 500 }
+        )
+      } else {
+        insertedCount = data?.length || 0
+        console.log(`[Chat/Generate] ✅ Stored ${insertedCount} messages in Supabase`)
+        console.log(`[Chat/Generate] Insert result:`, data)
+      }
+    } catch (err) {
+      console.error(`[Chat/Generate] Error storing to Supabase:`, err)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Exception during insert: ${err instanceof Error ? err.message : String(err)}`,
+          messagesGenerated: newMessages.length,
+          insertedCount: 0,
+        },
+        { status: 500 }
+      )
+    }
+
+    console.log(`[Chat/Generate] 📡 Broadcasted ${newMessages.length} messages to SSE subscribers`)
 
     return NextResponse.json({
       success: true,
       messagesGenerated: newMessages.length,
-      messages: messagesWithTimestamp,
+      insertedCount: insertedCount,
+      messages: newMessages,
       timestamp: new Date().toISOString(),
-      totalCached: allMessages.length,
+      storage: "Supabase (auto-cleanup removes messages older than 10 minutes)",
     })
   } catch (error) {
     console.error("[Chat/Generate] ❌ Chat generation error:", error)
@@ -166,32 +197,41 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/chat/generate
- * Retrieves chat message history
- * Messages expire naturally: max 100 messages total (~20 per agent)
+ * Retrieves recent chat message history from Supabase
+ * Messages auto-expire: removed when older than 10 minutes
  */
 export async function GET(request: NextRequest) {
   try {
-    const cacheKey = CACHE_KEYS.market("chat:messages")
-    const messages = (await getCache<ChatMessage[]>(cacheKey)) || []
-
-    // Support filtering by agent ID
     const { searchParams } = new URL(request.url)
     const agentId = searchParams.get("agentId")
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 50)
 
-    let filtered = agentId ? messages.filter((m) => m.agentId === agentId) : messages
-    
-    // Sort by timestamp (newest first) and limit
-    filtered = filtered
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, limit)
+    // Only fetch messages from last 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 600000).toISOString()
+
+    let query = supabase
+      .from('agent_chat_messages')
+      .select('*')
+      .gt('timestamp', tenMinutesAgo)
+      .order('timestamp', { ascending: false })
+      .limit(limit)
+
+    if (agentId) {
+      query = query.eq('agent_id', agentId)
+    }
+
+    const { data: messages, error } = await query
+
+    if (error) {
+      throw error
+    }
 
     return NextResponse.json({
       success: true,
-      messages: filtered,
-      total: messages.length,
-      maxMessages: 100,
+      messages: messages || [],
+      total: (messages || []).length,
       frequency: "2 messages per agent per 15 minutes",
+      cleanup: "Auto-remove messages older than 10 minutes",
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -208,14 +248,20 @@ export async function GET(request: NextRequest) {
 
 /**
  * DELETE /api/chat/generate
- * Clears all chat messages
+ * Clears all chat messages from Supabase
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const cacheKey = CACHE_KEYS.market("chat:messages")
-    await deleteCache(cacheKey)
+    const { error } = await supabase
+      .from('agent_chat_messages')
+      .delete()
+      .neq('id', '') // Delete all rows
 
-    console.log("[Chat/Generate] 🗑️ Cleared all chat messages")
+    if (error) {
+      throw error
+    }
+
+    console.log("[Chat/Generate] 🗑️ Cleared all chat messages from Supabase")
 
     return NextResponse.json({
       success: true,

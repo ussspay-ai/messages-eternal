@@ -773,13 +773,26 @@ export default function DashboardPage() {
         const data = await response.json()
 
         if (data.success && data.messages) {
+          // Transform Supabase fields to component interface (snake_case → camelCase)
+          const transformedMessages = data.messages.map((msg: any) => ({
+            id: msg.id,
+            agentId: msg.agent_id || msg.agentId,
+            agentName: msg.agent_name || msg.agentName,
+            timestamp: msg.timestamp,
+            content: msg.content,
+            type: msg.message_type || msg.type,
+            confidence: msg.confidence,
+          }))
+
           // Organize messages by agent
           const messagesByAgent: Record<string, any[]> = {}
-          data.messages.forEach((msg: any) => {
-            if (!messagesByAgent[msg.agentId]) {
+          transformedMessages.forEach((msg: any) => {
+            if (msg.agentId && !messagesByAgent[msg.agentId]) {
               messagesByAgent[msg.agentId] = []
             }
-            messagesByAgent[msg.agentId].push(msg)
+            if (msg.agentId) {
+              messagesByAgent[msg.agentId].push(msg)
+            }
           })
 
           // API already limits to 30 messages, but ensure per-agent limit
@@ -788,14 +801,14 @@ export default function DashboardPage() {
           })
 
           // Calculate new messages
-          if (previousMessageCount > 0 && data.messages.length > previousMessageCount) {
-            const newCount = data.messages.length - previousMessageCount
+          if (previousMessageCount > 0 && transformedMessages.length > previousMessageCount) {
+            const newCount = transformedMessages.length - previousMessageCount
             setNewMessageCount(newCount)
           }
           
-          setPreviousMessageCount(data.messages.length)
+          setPreviousMessageCount(transformedMessages.length)
           setChatMessages(messagesByAgent)
-          console.debug(`[Dashboard] Loaded ${data.messages.length} real-time agent messages (max 30) for current trading symbol`)
+          console.debug(`[Dashboard] Loaded ${transformedMessages.length} real-time agent messages (max 30) for current trading symbol`)
         }
       } catch (error) {
         console.error("Failed to generate/fetch chat messages:", error)

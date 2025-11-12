@@ -1,42 +1,69 @@
 /**
  * Chat Messages Endpoint
- * Fetches latest agent messages
- * Messages expire automatically: 5 oldest messages removed every ~5 minutes
+ * Fetches latest agent messages from Supabase (no Redis)
+ * Auto-cleanup: Messages older than 10 minutes are removed
+ * Polling: 2x every 15 minutes (every 7.5 minutes)
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { getCache, CACHE_KEYS } from "@/lib/redis-client"
+import { createClient } from "@supabase/supabase-js"
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_KEY || ""
+)
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const agentId = searchParams.get("agentId")
-    let limit = parseInt(searchParams.get("limit") || "30")
+    let limit = parseInt(searchParams.get("limit") || "5")
     
-    // Enforce maximum 30 messages per agent/request
-    limit = Math.min(limit, 30)
+    // Enforce maximum 5 messages (fetch only 5 recent chats)
+    limit = Math.min(limit, 5)
 
-    const cacheKey = CACHE_KEYS.market("chat:messages")
-    const allMessages = (await getCache<any[]>(cacheKey)) || []
+    // Calculate cutoff time (10 minutes ago) for auto-cleanup
+    const tenMinutesAgo = new Date(Date.now() - 600000).toISOString()
+
+    // Query builder
+    let query = supabase
+      .from('agent_chat_messages')
+      .select('*')
+      .gt('timestamp', tenMinutesAgo) // Only messages from last 10 minutes
+      .order('timestamp', { ascending: false }) // Newest first
+      .limit(limit)
 
     // Filter by agent if specified
-    let messages = allMessages
-
     if (agentId) {
-      messages = allMessages.filter((m) => m.agentId === agentId)
+      query = query.eq('agent_id', agentId)
     }
 
-    // Return latest N messages (ordered by timestamp descending)
-    const latest = messages
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, limit)
+    const { data: messages, error } = await query
+
+    if (error) {
+      console.error("Supabase query error:", error)
+      throw error
+    }
+
+    // Auto-cleanup: Delete old messages (older than 10 minutes) in background
+    void (async () => {
+      try {
+        await supabase
+          .from('agent_chat_messages')
+          .delete()
+          .lt('timestamp', tenMinutesAgo)
+        console.log("[Chat Cleanup] Removed messages older than 10 minutes")
+      } catch (err) {
+        console.warn("[Chat Cleanup] Error:", err)
+      }
+    })()
 
     return NextResponse.json({
       success: true,
-      messages: latest,
-      total: messages.length,
+      messages: messages || [],
+      total: (messages || []).length,
       limit: limit,
-      expiration: "5 messages auto-expire every 5 minutes",
+      cleanup: "Auto-remove messages older than 10 minutes",
     })
   } catch (error) {
     console.error("Chat messages fetch error:", error)

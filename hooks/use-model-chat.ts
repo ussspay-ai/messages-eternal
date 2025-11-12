@@ -1,6 +1,7 @@
 /**
  * Custom Hook for Model Chat Management
  * Handles fetching, caching, and real-time updates of agent chat messages
+ * Now includes realtime reasoning with agent performance metrics and unrealized PnL
  */
 
 import { useState, useEffect, useCallback } from "react"
@@ -11,21 +12,48 @@ export interface ChatMessage {
   agentName: string
   timestamp: string
   content: string
-  type: "analysis" | "trade_signal" | "market_update" | "risk_management"
+  type: "analysis" | "trade_signal" | "market_update" | "risk_management" | "reasoning"
   confidence?: number
+  symbol?: string
+  unrealizedPnL?: number
+  unrealizedROI?: number
+}
+
+export interface SymbolPerformance {
+  symbol: string
+  currentPrice: number
+  unrealizedPnL: number
+  unrealizedROI: number
+  positionSize: number
+  side: 'LONG' | 'SHORT'
+  entryPrice: number
+}
+
+export interface AgentRealtimeContext {
+  agentId: string
+  agentName: string
+  totalUnrealizedPnL: number
+  totalUnrealizedROI: number
+  openPositionCount: number
+  tradedSymbols: SymbolPerformance[]
+  accountValue: number
+  equity: number
+  timestamp: string
 }
 
 interface UseModelChatOptions {
   agentId?: string
   refreshInterval?: number // milliseconds
   enableAutoRefresh?: boolean
+  includeRealtimeContext?: boolean // Fetch unrealized PnL and symbols
 }
 
 export function useModelChat(options: UseModelChatOptions = {}) {
   const {
     agentId,
-    refreshInterval = 10000, // 10 seconds by default for display updates
+    refreshInterval = 450000, // 7.5 minutes (450 seconds) = 2x per 15 min interval
     enableAutoRefresh = true,
+    includeRealtimeContext = true,
   } = options
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -33,6 +61,9 @@ export function useModelChat(options: UseModelChatOptions = {}) {
   const [error, setError] = useState<string | null>(null)
   const [newMessageCount, setNewMessageCount] = useState(0)
   const [previousMessageCount, setPreviousMessageCount] = useState(0)
+  const [realtimeContext, setRealtimeContext] = useState<AgentRealtimeContext | AgentRealtimeContext[] | null>(null)
+  const [contextLoading, setContextLoading] = useState(false)
+  const [lastCleanupTime, setLastCleanupTime] = useState<number>(Date.now())
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -42,13 +73,27 @@ export function useModelChat(options: UseModelChatOptions = {}) {
       if (agentId) {
         url.searchParams.append("agentId", agentId)
       }
-      url.searchParams.append("limit", "50")
+      url.searchParams.append("limit", "5") // Only fetch 5 most recent chats
 
       const response = await fetch(url.toString())
       const data = await response.json()
 
       if (data.success) {
-        const fetchedMessages = data.messages || []
+        let fetchedMessages = data.messages || []
+        
+        // Auto-cleanup: Remove messages older than 10 minutes
+        const tenMinutesAgo = Date.now() - 600000 // 10 minutes in ms
+        const now = Date.now()
+        
+        // Only cleanup every 10 minutes to avoid excessive filtering
+        if (now - lastCleanupTime > 600000) {
+          fetchedMessages = fetchedMessages.filter((msg: ChatMessage) => {
+            const msgTime = new Date(msg.timestamp).getTime()
+            return msgTime > tenMinutesAgo
+          })
+          setLastCleanupTime(now)
+        }
+        
         setMessages(fetchedMessages)
         
         // Calculate new messages that arrived
@@ -69,7 +114,31 @@ export function useModelChat(options: UseModelChatOptions = {}) {
     } finally {
       setIsLoading(false)
     }
-  }, [agentId, previousMessageCount])
+  }, [agentId, previousMessageCount, lastCleanupTime])
+
+  // Fetch realtime context: unrealized PnL, symbol positions, prices
+  const fetchRealtimeContext = useCallback(async () => {
+    if (!includeRealtimeContext) return
+
+    try {
+      setContextLoading(true)
+      
+      const url = new URL("/api/aster/agent-realtime-context", window.location.origin)
+      if (agentId) {
+        url.searchParams.append("agentId", agentId)
+      }
+
+      const response = await fetch(url.toString())
+      const data = await response.json()
+      
+      setRealtimeContext(data)
+    } catch (err) {
+      console.error("Error fetching realtime context:", err)
+      // Don't fail chat if context fails - it's supplemental
+    } finally {
+      setContextLoading(false)
+    }
+  }, [agentId, includeRealtimeContext])
 
   // Auto-refresh setup
   useEffect(() => {
@@ -77,20 +146,27 @@ export function useModelChat(options: UseModelChatOptions = {}) {
 
     // Fetch immediately
     fetchMessages()
+    fetchRealtimeContext()
 
     // Set up interval for auto-refresh
-    const interval = setInterval(fetchMessages, refreshInterval)
+    const interval = setInterval(() => {
+      fetchMessages()
+      fetchRealtimeContext()
+    }, refreshInterval)
 
     return () => clearInterval(interval)
-  }, [fetchMessages, refreshInterval, enableAutoRefresh])
+  }, [fetchMessages, fetchRealtimeContext, refreshInterval, enableAutoRefresh])
 
   return {
     messages,
     isLoading,
     error,
     newMessageCount,
+    realtimeContext,
+    contextLoading,
     clearNewMessageCount: () => setNewMessageCount(0),
     refresh: fetchMessages,
+    refreshContext: fetchRealtimeContext,
   }
 }
 

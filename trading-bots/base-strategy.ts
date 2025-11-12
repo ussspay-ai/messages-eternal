@@ -21,8 +21,8 @@ import {
   saveExitPlan,
   saveAgentChatMessage,
   type AgentTrade,
-  type AgentSignal as DbAgentSignal,
-  type AgentThinking as DbAgentThinking,
+  type AgentSignal,
+  type AgentThinking,
   type AgentStatusRecord,
   type AgentDecisionLog,
   type ExitPlan,
@@ -393,12 +393,10 @@ export abstract class BaseStrategy {
         const chatMessage: AgentChatMessage = {
           agent_id: this.config.agentId,
           agent_name: this.config.name,
-          type: 'exit_plan',
+          message_type: 'trade_signal',
           symbol: baseSymbol,
-          side,
-          take_profit: signal.takeProfit || 0,
-          stop_loss: signal.stopLoss || 0,
           confidence: signal.confidence,
+          unrealized_pnl: undefined,
           content: `${side} ${executedQuantity} ${baseSymbol} @ $${executedPrice.toFixed(2)}. Risk-Reward: TP $${signal.takeProfit?.toFixed(2)} / SL $${signal.stopLoss?.toFixed(2)} (${signal.confidence.toFixed(0)}% confidence). Reason: ${signal.reason}`,
           timestamp: new Date().toISOString(),
         }
@@ -417,14 +415,13 @@ export abstract class BaseStrategy {
    */
   protected async logSignal(signal: TradeSignal, currentPrice: string): Promise<void> {
     try {
-      const dbSignal: DbAgentSignal = {
+      const dbSignal: AgentSignal = {
         agent_id: this.config.agentId,
         symbol: this.config.symbol,
         action: signal.action,
         confidence: signal.confidence,
-        reasoning: signal.reason,
+        reason: signal.reason,
         signal_timestamp: new Date().toISOString(),
-        was_executed: signal.action !== 'HOLD',
       }
 
       await saveAgentSignal(dbSignal)
@@ -437,18 +434,16 @@ export abstract class BaseStrategy {
    * Log agent thinking/analysis to Supabase
    */
   protected async logThinking(
-    type: 'analysis' | 'decision' | 'error' | 'recovery',
+    type: 'analysis' | 'decision' | 'error' | 'market_analysis',
     content: string,
     context?: Record<string, any>
   ): Promise<void> {
     try {
-      const thinking: DbAgentThinking = {
+      const thinking: AgentThinking = {
         agent_id: this.config.agentId,
-        symbol: this.config.symbol,
         thinking_type: type,
         content,
-        context,
-        model_used: this.config.model,
+        metadata: context,
         thinking_timestamp: new Date().toISOString(),
       }
 
@@ -462,24 +457,19 @@ export abstract class BaseStrategy {
    * Update agent status in real-time
    */
   protected async updateStatus(
-    status: 'running' | 'paused' | 'error' | 'sleeping',
+    status: 'running' | 'idle' | 'error' | 'paused',
     message?: string
   ): Promise<void> {
     try {
       const stats = await this.getBalance()
-      const position = await this.getCurrentPosition(this.config.symbol)
 
       const statusRecord: AgentStatusRecord = {
         agent_id: this.config.agentId,
         name: this.config.name,
         status,
+        message,
         last_heartbeat: new Date().toISOString(),
-        current_position: position ? `${position.side} ${position.positionAmt} ${this.config.symbol}` : 'None',
-        thinking_message: message,
-        performance_metrics: {
-          balance: stats,
-          lastUpdate: new Date().toISOString(),
-        },
+        updated_at: new Date().toISOString(),
       }
 
       await updateAgentStatus(statusRecord)
@@ -492,20 +482,19 @@ export abstract class BaseStrategy {
    * Log a decision for analysis/learning
    */
   protected async logDecision(
-    decisionType: string,
+    decisionType: 'BUY' | 'SELL' | 'HOLD',
     reasoning: string,
     inputData?: Record<string, any>,
-    decision?: Record<string, any>,
     outcome?: 'success' | 'failure' | 'pending'
   ): Promise<void> {
     try {
       const decisionLog: AgentDecisionLog = {
         agent_id: this.config.agentId,
-        decision_type: decisionType,
+        symbol: this.config.symbol,
+        decision: decisionType,
         reasoning,
-        input_data: inputData,
-        decision,
-        outcome,
+        confidence: 0.5,
+        market_context: inputData,
         decision_timestamp: new Date().toISOString(),
       }
 

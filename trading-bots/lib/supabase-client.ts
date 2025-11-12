@@ -16,33 +16,83 @@ export const supabase = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null
 
-// Type interfaces
+// Type interfaces with full type safety
 export interface AgentTrade {
-  [key: string]: any
+  agent_id: string
+  symbol: string
+  side: 'BUY' | 'SELL'
+  quantity: number
+  entry_price: number
+  executed_price: number
+  stop_loss?: number
+  take_profit?: number
+  reason: string
+  confidence: number
+  status: 'open' | 'closed' | 'cancelled' | 'error'
+  trade_timestamp: string
+  order_id?: string
 }
 
 export interface AgentSignal {
-  [key: string]: any
+  agent_id: string
+  symbol: string
+  action: 'BUY' | 'SELL' | 'HOLD'
+  quantity?: number
+  price?: number
+  confidence: number
+  reason: string
+  signal_timestamp: string
 }
 
 export interface AgentThinking {
-  [key: string]: any
+  agent_id: string
+  thinking_type: 'analysis' | 'error' | 'decision' | 'market_analysis'
+  content: string
+  metadata?: Record<string, any>
+  thinking_timestamp: string
 }
 
 export interface AgentStatusRecord {
-  [key: string]: any
+  agent_id: string
+  name: string
+  status: 'running' | 'idle' | 'error' | 'paused'
+  message?: string
+  last_heartbeat?: string
+  updated_at?: string
 }
 
 export interface AgentDecisionLog {
-  [key: string]: any
+  agent_id: string
+  symbol: string
+  decision: 'BUY' | 'SELL' | 'HOLD'
+  reasoning: string
+  confidence: number
+  market_context?: Record<string, any>
+  decision_timestamp: string
 }
 
 export interface ExitPlan {
-  [key: string]: any
+  agent_id: string
+  symbol: string
+  side: 'LONG' | 'SHORT'
+  position_size: number
+  entry_price: number
+  take_profit: number
+  stop_loss: number
+  confidence: number
+  reasoning: string
+  created_at?: string
 }
 
 export interface AgentChatMessage {
-  [key: string]: any
+  agent_id: string
+  agent_name: string
+  message_type: 'analysis' | 'trade_signal' | 'market_update' | 'risk_management' | 'reasoning'
+  content: string
+  symbol?: string
+  confidence?: number
+  unrealized_pnl?: number
+  timestamp: string
 }
 
 // Stub implementations - agents can operate without Supabase
