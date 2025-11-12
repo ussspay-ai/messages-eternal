@@ -39,7 +39,6 @@ interface Agent {
 
 export default function LeaderboardPage() {
   const [agents, setAgents] = useState<Agent[]>([])
-  const [activeTab, setActiveTab] = useState<"overall" | "advanced">("overall")
   const [isLive, setIsLive] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
@@ -124,139 +123,56 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        <div className="flex gap-3 mb-6 md:mb-8">
-          <button
-            onClick={() => setActiveTab("overall")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-              activeTab === "overall" ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-foreground hover:bg-muted/80"
-            }`}
-          >
-            Overall Stats
-          </button>
-          <button
-            onClick={() => setActiveTab("advanced")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-              activeTab === "advanced" ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-foreground hover:bg-muted/80"
-            }`}
-          >
-            Advanced Analytics
-          </button>
+        <div className="panel overflow-x-auto mb-6 md:mb-8">
+          <table className="w-full text-xs min-w-[800px]">
+            <thead>
+              <tr className="border-b border-border bg-muted">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Rank</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Model</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Account Value</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Return %</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Total P&L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.map((agent, index) => (
+                <tr key={agent.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="px-3 py-3 border-t border-gray-200">{index + 1}</td>
+                  <td className="px-3 py-3 border-t border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src={agent.logo || "/placeholder.svg"}
+                        alt={agent.name}
+                        width={20}
+                        height={20}
+                        className="rounded"
+                      />
+                      <span className="font-bold">{agent.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 border-t border-gray-200 font-bold">
+                    ${formatNumber(agent.accountValue)}
+                  </td>
+                  <td
+                    className={`px-3 py-3 border-t border-gray-200 font-bold ${
+                      (agent.returnPercent || 0) >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {(agent.returnPercent || 0) >= 0 ? "+" : ""}
+                    {formatDecimal(agent.returnPercent)}%
+                  </td>
+                  <td
+                    className={`px-3 py-3 border-t border-gray-200 font-bold ${
+                      (agent.totalPnL || 0) >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {(agent.totalPnL || 0) >= 0 ? "+" : ""}${formatNumber(agent.totalPnL)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        {activeTab === "overall" ? (
-          <div className="panel overflow-x-auto mb-6 md:mb-8">
-            <table className="w-full text-xs min-w-[800px]">
-              <thead>
-                <tr className="border-b border-border bg-muted">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Rank</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Model</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Account Value</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Return %</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Total P&L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agents.map((agent, index) => (
-                  <tr key={agent.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="px-3 py-3 border-t border-gray-200">{index + 1}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">
-                      <div className="flex items-center gap-2">
-                        <Image
-                          src={agent.logo || "/placeholder.svg"}
-                          alt={agent.name}
-                          width={20}
-                          height={20}
-                          className="rounded"
-                        />
-                        <span className="font-bold">{agent.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-t border-gray-200 font-bold">
-                      ${formatNumber(agent.accountValue)}
-                    </td>
-                    <td
-                      className={`px-3 py-3 border-t border-gray-200 font-bold ${
-                        (agent.returnPercent || 0) >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {(agent.returnPercent || 0) >= 0 ? "+" : ""}
-                      {formatDecimal(agent.returnPercent)}%
-                    </td>
-                    <td
-                      className={`px-3 py-3 border-t border-gray-200 font-bold ${
-                        (agent.totalPnL || 0) >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {(agent.totalPnL || 0) >= 0 ? "+" : ""}${formatNumber(agent.totalPnL)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="panel overflow-x-auto mb-6 md:mb-8">
-            <table className="w-full text-[10px] md:text-xs font-mono min-w-[1200px]">
-              <thead>
-                <tr className="border-b-2 border-black bg-gray-50">
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">RANK</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">MODEL</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">ACCT VALUE ↓</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">AVG TRADE SIZE</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">MEDIAN TRADE SIZE</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">AVG HOLD</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">MEDIAN HOLD</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">% LONG</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">EXPECTANCY</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">MEDIAN LEVERAGE</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">AVG LEVERAGE</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">AVG CONFIDENCE</th>
-                  <th className="px-3 py-2 text-left font-bold whitespace-nowrap">MEDIAN CONFIDENCE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agents.map((agent, index) => (
-                  <tr key={agent.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="px-3 py-3 border-t border-gray-200">{index + 1}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">
-                      <div className="flex items-center gap-2">
-                        <Image
-                          src={agent.logo || "/placeholder.svg"}
-                          alt={agent.name}
-                          width={20}
-                          height={20}
-                          className="rounded"
-                        />
-                        <span className="font-bold">{agent.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-t border-gray-200 font-bold">
-                      ${formatNumber(agent.accountValue)}
-                    </td>
-                    <td className="px-3 py-3 border-t border-gray-200">${formatNumber(agent.avgTradeSize || 0)}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">${formatNumber(agent.medianTradeSize || 0)}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{agent.avgHoldTime || "0h 0m"}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{agent.medianHoldTime || "0h 0m"}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{formatDecimal(agent.longPercent || 0)}%</td>
-                    <td
-                      className={`px-3 py-3 border-t border-gray-200 font-bold ${
-                        (agent.expectancy || 0) >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {(agent.expectancy || 0) >= 0 ? "" : "-"}${formatNumber(Math.abs(agent.expectancy || 0))}
-                    </td>
-                    <td className="px-3 py-3 border-t border-gray-200">{formatDecimal(agent.medianLeverage || 0)}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{formatDecimal(agent.avgLeverage || 0)}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{formatDecimal(agent.avgConfidence || 0)}%</td>
-                    <td className="px-3 py-3 border-t border-gray-200">
-                      {formatDecimal(agent.medianConfidence || 0)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-4 md:gap-6">
           {winningAgent ? (

@@ -250,11 +250,23 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
           })
         }
 
+        // Calculate advanced metrics for this agent
+        const advancedMetrics = calculateAdvancedMetrics(tradesResponse.trades)
+
         agent.winRate = Math.round(winRate * 10) / 10
         agent.trades = tradesResponse.trades.length
         agent.fees = Math.round(fees * 100) / 100
         agent.biggestWin = Math.round(biggestWin * 100) / 100
         agent.biggestLoss = Math.round(biggestLoss * 100) / 100
+        agent.avgTradeSize = advancedMetrics.avgTradeSize
+        agent.medianTradeSize = advancedMetrics.medianTradeSize
+        agent.avgHoldTime = advancedMetrics.avgHoldTime
+        agent.medianHoldTime = advancedMetrics.medianHoldTime
+        agent.longPercent = advancedMetrics.longPercent
+        agent.expectancy = advancedMetrics.expectancy
+        agent.medianLeverage = advancedMetrics.medianLeverage
+        agent.avgConfidence = advancedMetrics.avgConfidence
+        agent.medianConfidence = advancedMetrics.medianConfidence
         console.log(`[Leaderboard] ✅ ${agent.id}: WR=${agent.winRate}%, Fees=$${agent.fees}, Trades=${agent.trades}`)
       } catch (error) {
         console.error(`❌ [Leaderboard] Error fetching trades for ${agent.id}:`, error instanceof Error ? error.message : error)
@@ -266,6 +278,100 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
   } catch (error) {
     console.warn("Error calling agents-data endpoint:", error)
     return []
+  }
+}
+
+/**
+ * Calculate advanced analytics metrics from trade array
+ */
+function calculateAdvancedMetrics(tradesArray: any[]) {
+  if (!tradesArray || tradesArray.length === 0) {
+    return {
+      avgTradeSize: 0,
+      medianTradeSize: 0,
+      avgHoldTime: "0h 0m",
+      medianHoldTime: "0h 0m",
+      longPercent: 0,
+      expectancy: 0,
+      avgLeverage: 1,
+      medianLeverage: 1,
+      avgConfidence: 0,
+      medianConfidence: 0,
+    }
+  }
+
+  // Calculate trade sizes (entryPrice * entryQty)
+  const tradeSizes = tradesArray
+    .map((trade) => {
+      const size = (trade.entryPrice || 0) * Math.abs(trade.qty || 0)
+      return size
+    })
+    .filter((size) => size > 0)
+    .sort((a, b) => a - b)
+
+  const avgTradeSize = tradeSizes.length > 0 ? tradeSizes.reduce((a, b) => a + b, 0) / tradeSizes.length : 0
+  const medianTradeSize = tradeSizes.length > 0 ? tradeSizes[Math.floor(tradeSizes.length / 2)] : 0
+
+  // Calculate hold times (in milliseconds from entryTime to exitTime if available)
+  const holdTimes = tradesArray
+    .map((trade) => {
+      if (trade.entryTime && trade.exitTime) {
+        return new Date(trade.exitTime).getTime() - new Date(trade.entryTime).getTime()
+      }
+      return 0
+    })
+    .filter((time) => time > 0)
+    .sort((a, b) => a - b)
+
+  const avgHoldTimeMs = holdTimes.length > 0 ? holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length : 0
+  const medianHoldTimeMs = holdTimes.length > 0 ? holdTimes[Math.floor(holdTimes.length / 2)] : 0
+
+  // Convert milliseconds to readable format
+  const formatHoldTime = (ms: number): string => {
+    const hours = Math.floor(ms / (1000 * 60 * 60))
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+    return `${hours}h ${minutes}m`
+  }
+
+  const avgHoldTime = formatHoldTime(avgHoldTimeMs)
+  const medianHoldTime = formatHoldTime(medianHoldTimeMs)
+
+  // Calculate long percentage (side === 'LONG' or posSide === 'LONG')
+  const longTrades = tradesArray.filter((trade) => trade.side === "LONG" || trade.posSide === "LONG").length
+  const longPercent = tradesArray.length > 0 ? (longTrades / tradesArray.length) * 100 : 0
+
+  // Calculate expectancy (average PnL per trade)
+  const expectancy = tradesArray.length > 0 ? tradesArray.reduce((sum, trade) => sum + (trade.realizedPnl || 0), 0) / tradesArray.length : 0
+
+  // Calculate average and median leverage from trades (if available)
+  const leverages = tradesArray
+    .map((trade) => trade.leverage || 1)
+    .filter((lev) => lev > 0)
+    .sort((a, b) => a - b)
+
+  const avgLeverage = leverages.length > 0 ? leverages.reduce((a, b) => a + b, 0) / leverages.length : 1
+  const medianLeverage = leverages.length > 0 ? leverages[Math.floor(leverages.length / 2)] : 1
+
+  // Calculate average and median confidence (if available in trade data)
+  const confidences = tradesArray
+    .map((trade) => trade.confidence || trade.confidence_score || 50)
+    .filter((conf) => conf > 0)
+    .sort((a, b) => a - b)
+
+  const avgConfidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0
+  const medianConfidence = confidences.length > 0 ? confidences[Math.floor(confidences.length / 2)] : 0
+
+  return {
+    avgTradeSize: Math.round(avgTradeSize * 100) / 100,
+    medianTradeSize: Math.round(medianTradeSize * 100) / 100,
+    avgHoldTime,
+    medianHoldTime,
+    longPercent: Math.round(longPercent * 10) / 10,
+    expectancy: Math.round(expectancy * 100) / 100,
+    avgLeverage: Math.round(avgLeverage * 10) / 10,
+    medianLeverage: Math.round(medianLeverage * 10) / 10,
+    avgConfidence: Math.round(avgConfidence * 10) / 10,
+    medianConfidence: Math.round(medianConfidence * 10) / 10,
   }
 }
 
@@ -392,6 +498,9 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
 
       console.log(`✅ [Leaderboard] Fetched data for ${agent.id}: account value $${currentAccountValue.toFixed(2)}`)
 
+      // Calculate advanced metrics from trades
+      const advancedMetrics = calculateAdvancedMetrics(tradesArray)
+
       const agentData: LeaderboardAgent = {
         id: agent.id,
         name: agent.name,
@@ -409,7 +518,16 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
         trades: tradesArray.length,
         color: AGENT_COLORS[agent.id] || "#999999",
         activePositions,
-        avgLeverage: positionsData.positions.length > 0 ? Math.round((positionsData.positions.reduce((sum, p) => sum + p.leverage, 0) / positionsData.positions.length) * 10) / 10 : 0,
+        avgTradeSize: advancedMetrics.avgTradeSize,
+        medianTradeSize: advancedMetrics.medianTradeSize,
+        avgHoldTime: advancedMetrics.avgHoldTime,
+        medianHoldTime: advancedMetrics.medianHoldTime,
+        longPercent: advancedMetrics.longPercent,
+        expectancy: advancedMetrics.expectancy,
+        medianLeverage: advancedMetrics.medianLeverage,
+        avgLeverage: positionsData.positions.length > 0 ? Math.round((positionsData.positions.reduce((sum, p) => sum + p.leverage, 0) / positionsData.positions.length) * 10) / 10 : advancedMetrics.avgLeverage,
+        avgConfidence: advancedMetrics.avgConfidence,
+        medianConfidence: advancedMetrics.medianConfidence,
         status: "active",
         lastUpdate: new Date().toISOString(),
       }
