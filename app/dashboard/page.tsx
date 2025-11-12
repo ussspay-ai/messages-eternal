@@ -621,42 +621,37 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Build real-time context for chat display from actual positions and account data
+  // Fetch real-time context for chat display (prices, positions, PnL from Aster API)
   useEffect(() => {
-    const contexts: Record<string, any> = {}
-    
-    for (const agent of agents) {
-      const positions = livePositions[agent.id] || []
-      
-      // Calculate total unrealized profit from positions
-      const totalUnrealizedPnL = positions.reduce((sum: number, p: any) => sum + (p.unrealizedPnl || 0), 0)
-      
-      // Get traded symbols with unrealized PnL
-      const tradedSymbols = positions.map((p: any) => ({
-        symbol: p.coin,
-        currentPrice: 0, // Would need price feed to calculate
-        unrealizedPnL: p.unrealizedPnl || 0,
-        unrealizedROI: ((p.unrealizedPnl || 0) / (p.notional || 1)) * 100,
-        positionSize: p.notional || 0,
-        side: p.side,
-        entryPrice: 0, // Would need to fetch from positions API
-      }))
-      
-      contexts[agent.id] = {
-        agentId: agent.id,
-        agentName: agent.name,
-        totalUnrealizedPnL,
-        totalUnrealizedROI: agent.accountValue ? ((totalUnrealizedPnL / agent.accountValue) * 100) : 0,
-        openPositionCount: positions.length,
-        tradedSymbols,
-        accountValue: agent.accountValue || 50,
-        equity: agent.accountValue || 50,
-        timestamp: new Date().toISOString(),
+    const fetchContexts = async () => {
+      try {
+        const response = await fetch("/api/aster/agent-realtime-context")
+        if (response.ok) {
+          const data = await response.json()
+          const contexts: Record<string, any> = {}
+          
+          // Convert array to record indexed by agentId
+          if (Array.isArray(data)) {
+            data.forEach((ctx: any) => {
+              contexts[ctx.agentId] = ctx
+            })
+          }
+          
+          setRealtimeContexts(contexts)
+        }
+      } catch (err) {
+        console.error("[Dashboard] Failed to fetch realtime contexts:", err)
       }
     }
-    
-    setRealtimeContexts(contexts)
-  }, [agents, livePositions])
+
+    if (agents.length > 0) {
+      fetchContexts()
+      
+      // Refresh every 5 seconds to keep prices and PnL current
+      const interval = setInterval(fetchContexts, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [agents])
 
   // Fetch positions when agents are loaded
   useEffect(() => {
