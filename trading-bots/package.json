@@ -14,6 +14,7 @@
     "start:agent5": "node --loader ts-node/esm agents/agent5-bh.ts",
     "fund:agents": "node --loader ts-node/esm fund-agents.ts",
     "verify:funding": "node --loader ts-node/esm verify-funding.ts",
+    "cleanup": "node --loader ts-node/esm cleanup-all-positions.ts",
     "build": "tsc",
     "dev": "ts-node-esm start-all.ts"
   },
