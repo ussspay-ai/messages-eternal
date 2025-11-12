@@ -136,18 +136,33 @@ export class AsterClient {
 
   /**
    * Calculate trading fee from trade data
-   * Always calculates commission based on price × qty × fee rate
-   * The Aster API's commission field is not reliable, so we calculate locally
-   * using the isBuyerMaker flag to determine maker (true) vs taker (false) fee
+   * Prioritizes API commission if available, otherwise calculates locally
+   * Using the isBuyerMaker flag to determine maker (true) vs taker (false) fee
    */
   private calculateTradeCommission(trade: any): { commission: number; maker: boolean } {
-    // Always calculate commission from trade amount and fee rate
+    const isMaker = trade.isBuyerMaker === true
+    
+    // PRIORITY 1: Check if Aster API returns commission (more reliable than our calculation)
+    if (trade.commission !== undefined && trade.commission !== null && typeof trade.commission === 'number') {
+      const apiCommission = parseFloat(trade.commission)
+      // Check if commission seems reasonable (between 0.00001 and 0.1 of trade value)
+      const price = parseFloat(trade.price || 0)
+      const qty = parseFloat(trade.qty || 0)
+      const tradeAmount = price * qty
+      const maxCommission = tradeAmount * 0.001 // 0.1% max reasonable fee
+      
+      if (apiCommission > 0 && apiCommission <= maxCommission) {
+        return {
+          commission: Math.round(apiCommission * 1000000) / 1000000, // Round to 6 decimals
+          maker: isMaker,
+        }
+      }
+    }
+
+    // PRIORITY 2: Calculate commission locally if API value is missing or unreliable
     const price = parseFloat(trade.price || 0)
     const qty = parseFloat(trade.qty || 0)
     const tradeAmount = price * qty
-
-    // Determine if maker or taker based on isBuyerMaker flag
-    const isMaker = trade.isBuyerMaker === true
     const feeRate = isMaker ? ASTER_FEE_RATES.maker : ASTER_FEE_RATES.taker
     const commission = tradeAmount * feeRate
 
@@ -406,13 +421,20 @@ export class AsterClient {
           const price = parseFloat(rawTrade.price || 0)
           const qty = parseFloat(rawTrade.qty || 0)
           const tradeAmount = price * qty
+          const apiHasCommission = rawTrade.commission !== undefined && rawTrade.commission !== null
+          const maxCommission = tradeAmount * 0.001
+          const apiCommissionValid = apiHasCommission && parseFloat(rawTrade.commission) > 0 && parseFloat(rawTrade.commission) <= maxCommission
+          
           console.log(`[AsterClient] First trade fee calculation:`, {
             price: rawTrade.price,
             qty: rawTrade.qty,
             tradeAmount: tradeAmount.toFixed(6),
             isMaker: maker,
+            apiCommission: apiHasCommission ? parseFloat(rawTrade.commission) : "NOT PROVIDED",
+            apiCommissionValid: apiCommissionValid,
             feeRate: maker ? "0.01%" : "0.035%",
-            calculatedCommission: commission,
+            finalCommissionUsed: commission,
+            source: apiCommissionValid ? "API" : "CALCULATED",
           })
         }
         
@@ -453,7 +475,7 @@ export class AsterClient {
         totalTrades,
         totalFees: Math.round(totalFees * 100) / 100,
         avgFeePerTrade: totalTrades > 0 ? Math.round((totalFees / totalTrades) * 1000000) / 1000000 : 0,
-        note: "Using calculated fees (price × qty × feeRate)",
+        note: "Uses API commission if valid (≤0.1%), otherwise calculates locally",
       })
 
       return {
