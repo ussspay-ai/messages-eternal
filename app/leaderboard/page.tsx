@@ -153,11 +153,6 @@ export default function LeaderboardPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Account Value</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Return %</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Total P&L</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Fees</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Win Rate</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Biggest Win</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Biggest Loss</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Sharpe</th>
                 </tr>
               </thead>
               <tbody>
@@ -194,15 +189,6 @@ export default function LeaderboardPage() {
                     >
                       {(agent.totalPnL || 0) >= 0 ? "+" : ""}${formatNumber(agent.totalPnL)}
                     </td>
-                    <td className="px-3 py-3 border-t border-gray-200">${formatNumber(agent.fees)}</td>
-                    <td className="px-3 py-3 border-t border-gray-200">{agent.winRate || 0}%</td>
-                    <td className="px-3 py-3 border-t border-gray-200 text-green-600 font-bold">
-                      ${formatNumber(agent.biggestWin)}
-                    </td>
-                    <td className="px-3 py-3 border-t border-gray-200 text-red-600 font-bold">
-                      -${formatNumber(Math.abs(agent.biggestLoss || 0))}
-                    </td>
-                    <td className="px-3 py-3 border-t border-gray-200">{formatDecimal(agent.sharpe, 3)}</td>
                   </tr>
                 ))}
               </tbody>
