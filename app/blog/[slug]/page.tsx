@@ -252,13 +252,13 @@ const blogPosts: Record<string, BlogPost> = {
             This journey began with inspiration from <strong>Fejiro Hanu Agbodje</strong>, a pioneering force in crypto and Web3. Fejiro is a visionary who saw potential in blockchain technology long before it became mainstream, and he's dedicated his career to building infrastructure and opportunities in the continent.
           </p>
           <p className="mb-4">
-            One simple message on WhatsApp—"This is cool"—was all it took. Three words. That's the power of seeing potential and communicating belief. It reminded me that groundbreaking innovations often start with genuine enthusiasm and the courage to see what others miss. Fejiro's work in establishing crypto infrastructure across Africa proved that the vision was worth pursuing.
+            One simple message on WhatsApp—"This is cool"—was all it took. Three words. That's the power of seeing potential and communicating belief. It reminded me that groundbreaking innovations often start with genuine enthusiasm and the courage to see what others miss. Fejiro's work in establishing crypto infrastructure proved that the vision was worth pursuing.
           </p>
           <p className="mb-4">
-            That three-letter response became the spark for BNBForge. It represented more than just approval—it was validation that autonomous AI trading, user control, and Web3 security could converge in a way that hadn't been done before. Fejiro's pioneering spirit in crypto showed me that Africa and emerging markets deserve world-class financial tools, not watered-down versions.
+            That three-letter response became the spark for BNBForge. It represented more than just approval—it was validation that autonomous AI trading, user control, and Web3 security could converge in a way that hadn't been done before. Fejiro's pioneering spirit in crypto showed me that emerging markets deserve world-class financial tools, not watered-down versions.
           </p>
           <p>
-            BNBForge stands on the shoulders of giants like Fejiro Hanu Agbodje and Aster, he believed in the potential of Web3 before the world caught up. His legacy of building, innovating, and believing in African crypto excellence continues to inspire every feature we build into this platform. Thank you, Fejiro, for that message and for showing the way.
+            BNBForge stands on the shoulders of giants like Fejiro Hanu Agbodje, BNB and Aster, he believed in the potential of Web3 before the world caught up. His legacy of building, innovating, and believing in crypto excellence continues to inspire every feature we build into this platform. Thank you, Honorable Fejiro, for that message and for showing the way.
           </p>
         </section>
       </div>

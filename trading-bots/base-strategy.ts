@@ -29,6 +29,15 @@ import {
   type AgentChatMessage
 } from "./lib/supabase-client.ts"
 
+/**
+ * NOTE: Multi-symbol support
+ * Each agent can trade multiple symbols (configured in Pickaboo dashboard)
+ * Agent initialization spawns one BaseStrategy instance per symbol
+ * This ensures each strategy handles exactly one symbol for proper state management
+ * Prices are fetched in real-time from Binance for the current symbol
+ * Symbols are dynamically retrieved from Supabase (agent_trading_symbols table)
+ */
+
 export interface AgentConfig {
   agentId: string // Agent ID (e.g., "Claude", "GPT", "Gemini")
   name: string
@@ -105,14 +114,17 @@ export abstract class BaseStrategy {
         try {
           // Get current market and account data
           const stats = await this.client.getAccountInfo()
-          // Fetch price from Binance instead of Aster
-          const marketPrice = await this.priceClient.getMarketPrice(this.config.symbol)
+          
+          // Fetch real-time price from Binance
+          // Normalize symbol format: add USDT suffix if missing (FLOKI → FLOKIUSDT, ETHUSDT → ETHUSDT)
+          const binanceSymbol = this.config.symbol.endsWith('USDT') ? this.config.symbol : `${this.config.symbol}USDT`
+          const marketPrice = await this.priceClient.getMarketPrice(binanceSymbol)
           const positionsData = await this.client.getPositions()
 
           // DEBUG: Verify correct symbol and price
-          console.log(`[${this.config.name}] 📊 Market Price - Symbol: ${marketPrice.symbol}, Price: ${marketPrice.price}, Requested: ${this.config.symbol}`)
-          if (marketPrice.symbol !== this.config.symbol) {
-            console.warn(`[${this.config.name}] ⚠️ SYMBOL MISMATCH! Requested: ${this.config.symbol}, Got: ${marketPrice.symbol}`)
+          console.log(`[${this.config.name}] 📊 Fetching real-time price for ${this.config.symbol} (Binance: ${binanceSymbol}) at $${marketPrice.price}`)
+          if (marketPrice.symbol !== binanceSymbol) {
+            console.warn(`[${this.config.name}] ⚠️ SYMBOL MISMATCH! Requested: ${binanceSymbol}, Got: ${marketPrice.symbol}`)
           }
 
           // Log thinking/analysis process

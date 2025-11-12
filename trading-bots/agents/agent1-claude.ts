@@ -13,7 +13,8 @@ dotenv.config({ path: ".env.local" })
 async function startAgent() {
   try {
     const agentModelId = process.env.AGENT_1_MODEL_ID || "claude_arbitrage"
-    const symbols = await getTradingSymbols(agentModelId, process.env.TRADING_SYMBOL)
+    // Fetch symbols from Pickaboo dashboard (Supabase), don't override with env var
+    const symbols = await getTradingSymbols(agentModelId)
 
     // Validate config
     const signerAddress = process.env.AGENT_1_SIGNER || ""

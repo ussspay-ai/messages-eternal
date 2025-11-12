@@ -238,7 +238,7 @@ Focus on your CURRENT ACCUMULATION PLAN and entry strategy, not predictions abou
   }
 
   try {
-    const geminiModel = process.env.GEMINI_MODEL || "gemini-pro"
+    const geminiModel = process.env.GEMINI_MODEL || "gemini-2.0-flash"
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${process.env.GOOGLE_API_KEY}`,
       {

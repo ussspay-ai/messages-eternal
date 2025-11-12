@@ -211,5 +211,44 @@ export class BinancePriceClient {
   }
 }
 
+/**
+ * Fetch symbol prices from Binance with symbol suffix handling
+ * Converts FLOKI → FLOKIUSDT, BTC → BTCUSDT, ETHUSDT → ETHUSDT (no double suffix)
+ */
+export async function getPricesForSymbols(symbols: string[]): Promise<Record<string, string>> {
+  const binanceClient = new BinancePriceClient()
+  const priceMap: Record<string, string> = {}
+  
+  // Normalize symbols to Binance format (add USDT suffix if needed)
+  const binanceSymbols = symbols.map(s => {
+    // If already ends with USDT, don't add it again
+    if (s.endsWith('USDT')) return s
+    return `${s}USDT`
+  })
+  
+  console.log(`[BinanceClient] 🔄 Fetching ${binanceSymbols.length} symbol prices: ${binanceSymbols.join(', ')}`)
+  
+  // Try batch fetch first
+  if (binanceSymbols.length > 1) {
+    try {
+      return await binanceClient.getMultiplePrices(binanceSymbols)
+    } catch (error) {
+      console.warn(`[BinanceClient] Batch fetch failed, falling back to individual fetches`)
+    }
+  }
+  
+  // Fallback: fetch individually
+  for (const symbol of binanceSymbols) {
+    try {
+      const result = await binanceClient.getMarketPrice(symbol)
+      priceMap[symbol] = result.price
+    } catch (e) {
+      console.warn(`[BinanceClient] ⚠️ Could not fetch ${symbol}`)
+    }
+  }
+  
+  return priceMap
+}
+
 // Export singleton instance
 export const binancePriceClient = new BinancePriceClient()

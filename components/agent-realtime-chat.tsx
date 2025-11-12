@@ -48,6 +48,7 @@ export function AgentRealtimeChat({
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents])
   const [newMessageCount, setNewMessageCount] = useState(0)
   const [previousMessageCount, setPreviousMessageCount] = useState(0)
+  const [realtimeContexts, setRealtimeContexts] = useState<any[]>([])
 
   // Initialize real-time messaging hook
   const { messages, isLoading, error, isRealtime } = useRealtimeAgentMessages({
@@ -56,6 +57,28 @@ export function AgentRealtimeChat({
     enableFallbackPolling,
     fallbackPollInterval,
   })
+
+  // Fetch realtime context (positions, PnL, symbols) for all agents
+  useEffect(() => {
+    const fetchContexts = async () => {
+      try {
+        const response = await fetch("/api/aster/agent-realtime-context")
+        if (response.ok) {
+          const data = await response.json()
+          setRealtimeContexts(Array.isArray(data) ? data : [])
+        }
+      } catch (err) {
+        console.warn("[AgentRealtimeChat] Failed to fetch realtime contexts:", err)
+      }
+    }
+
+    // Initial fetch
+    fetchContexts()
+    
+    // Refresh every 5 seconds
+    const interval = setInterval(fetchContexts, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Track new messages arriving
   useEffect(() => {
@@ -115,6 +138,7 @@ export function AgentRealtimeChat({
         <ModelChatView
           agents={agents}
           messages={messages}
+          realtimeContext={realtimeContexts}
           newMessageCount={newMessageCount}
           onClearNewMessages={handleClearNewMessages}
         />

@@ -12,7 +12,8 @@ dotenv.config({ path: ".env.local" })
 
 async function startAgent() {
   const agentModelId = process.env.AGENT_4_MODEL_ID || "deepseek_ml"
-  const symbols = await getTradingSymbols(agentModelId, process.env.TRADING_SYMBOL)
+  // Fetch symbols from Pickaboo dashboard (Supabase), don't override with env var
+  const symbols = await getTradingSymbols(agentModelId)
 
   // Validate config
   const signerAddress = process.env.AGENT_4_SIGNER || ""

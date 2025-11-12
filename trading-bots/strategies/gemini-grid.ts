@@ -105,6 +105,13 @@ export class GeminiGridStrategy extends BaseStrategy {
         }
       }
 
+      // RESET STATE: When position fully closes, allow re-entry
+      if (!existingPosition && this.hasInitialBuy) {
+        this.hasInitialBuy = false
+        this.positionEntryPrice = null
+        console.log(`[${this.config.name}] 🔄 Position fully closed. Resetting state for re-entry.`)
+      }
+
       // INITIAL BUY: Execute immediate buy on startup if no active position
       if (!this.hasInitialBuy && !existingPosition && this.priceHistory.length >= 5) {
         // Calculate position size

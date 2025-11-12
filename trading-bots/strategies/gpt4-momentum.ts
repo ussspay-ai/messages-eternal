@@ -70,6 +70,13 @@ export class ChatGPTOpenAIStrategy extends BaseStrategy {
       // Check for existing position (checking quantity to handle 0-quantity positions)
       const existingPosition = positions.find((p) => p.symbol === this.config.symbol && (p.quantity || p.amount || 0) > 0)
 
+      // RESET STATE: When position fully closes, allow re-entry
+      if (!existingPosition && this.hasInitialBuy) {
+        this.hasInitialBuy = false
+        this.positionEntryPrice = null
+        console.log(`[${this.config.name}] 🔄 Position fully closed. Resetting state for re-entry.`)
+      }
+
       // INITIAL BUY: Execute immediate buy on startup if no position
       if (!this.hasInitialBuy && !existingPosition && this.priceHistory.length >= 5) {
         let positionSize = equity * this.params.position_size
