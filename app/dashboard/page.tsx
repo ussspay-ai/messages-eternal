@@ -233,6 +233,7 @@ export default function DashboardPage() {
   const [newMessageCount, setNewMessageCount] = useState(0)
   const [previousMessageCount, setPreviousMessageCount] = useState(0)
   const [isLoadingPositions, setIsLoadingPositions] = useState(true)
+  const [realtimeContexts, setRealtimeContexts] = useState<Record<string, any>>({})
 
   useEffect(() => {
     // Skip real data if testing with mock (set USE_MOCK_DATA=true in .env.local)
@@ -619,6 +620,43 @@ export default function DashboardPage() {
       clearInterval(chartRefreshInterval)
     }
   }, [])
+
+  // Build real-time context for chat display from actual positions and account data
+  useEffect(() => {
+    const contexts: Record<string, any> = {}
+    
+    for (const agent of agents) {
+      const positions = livePositions[agent.id] || []
+      
+      // Calculate total unrealized profit from positions
+      const totalUnrealizedPnL = positions.reduce((sum: number, p: any) => sum + (p.unrealizedPnl || 0), 0)
+      
+      // Get traded symbols with unrealized PnL
+      const tradedSymbols = positions.map((p: any) => ({
+        symbol: p.coin,
+        currentPrice: 0, // Would need price feed to calculate
+        unrealizedPnL: p.unrealizedPnl || 0,
+        unrealizedROI: ((p.unrealizedPnl || 0) / (p.notional || 1)) * 100,
+        positionSize: p.notional || 0,
+        side: p.side,
+        entryPrice: 0, // Would need to fetch from positions API
+      }))
+      
+      contexts[agent.id] = {
+        agentId: agent.id,
+        agentName: agent.name,
+        totalUnrealizedPnL,
+        totalUnrealizedROI: agent.accountValue ? ((totalUnrealizedPnL / agent.accountValue) * 100) : 0,
+        openPositionCount: positions.length,
+        tradedSymbols,
+        accountValue: agent.accountValue || 50,
+        equity: agent.accountValue || 50,
+        timestamp: new Date().toISOString(),
+      }
+    }
+    
+    setRealtimeContexts(contexts)
+  }, [agents, livePositions])
 
   // Fetch positions when agents are loaded
   useEffect(() => {
@@ -1539,6 +1577,7 @@ export default function DashboardPage() {
                   logo: a.logo,
                 }))}
                 messages={chatMessages}
+                realtimeContext={Object.values(realtimeContexts)}
                 newMessageCount={newMessageCount}
                 onClearNewMessages={() => setNewMessageCount(0)}
               />
