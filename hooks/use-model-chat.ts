@@ -96,17 +96,28 @@ export function useModelChat(options: UseModelChatOptions = {}) {
 
 /**
  * Hook to trigger chat generation (call periodically from dashboard)
+ * Default: 15 minutes (900 seconds) - generates 2 messages per agent
  */
-export function useModelChatGeneration(interval: number = 60000) {
+export function useModelChatGeneration(interval: number = 900000) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [lastGenerated, setLastGenerated] = useState<Date | null>(null)
+  const [generationStats, setGenerationStats] = useState({ total: 0, generated: 0 })
 
   useEffect(() => {
     const generateChat = async () => {
       try {
         setIsGenerating(true)
-        await fetch("/api/chat/generate", { method: "POST" })
+        const response = await fetch("/api/chat/generate", { method: "POST" })
+        const data = await response.json()
         setLastGenerated(new Date())
+        
+        if (data.success) {
+          setGenerationStats({
+            total: data.totalCached || 0,
+            generated: data.messagesGenerated || 0,
+          })
+          console.log(`[Chat Generation] ✅ Generated ${data.messagesGenerated} messages (total: ${data.totalCached})`)
+        }
       } catch (error) {
         console.error("Error generating chat messages:", error)
       } finally {
@@ -117,11 +128,11 @@ export function useModelChatGeneration(interval: number = 60000) {
     // Generate immediately on first load
     generateChat()
 
-    // Then set up interval
+    // Then set up interval (every 15 minutes by default)
     const timer = setInterval(generateChat, interval)
 
     return () => clearInterval(timer)
   }, [interval])
 
-  return { isGenerating, lastGenerated }
+  return { isGenerating, lastGenerated, generationStats }
 }

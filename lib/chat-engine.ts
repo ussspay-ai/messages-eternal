@@ -77,13 +77,13 @@ const AGENT_PROFILES: Record<
   gemini_grid: {
     name: "Gemini Grid",
     model: "Google Gemini Pro",
-    personality: "Systematic, grid-based, systematic profit-taking",
-    tradingStyle: "Grid trading across multiple price levels",
+    personality: "Systematic, accumulation-focused, strategic entry planning",
+    tradingStyle: "Dollar-cost averaging with systematic accumulation on dips",
     responsePatterns: [
-      "Grid initialized on {symbol} between ${level1} and ${level2}. Deploying {count} orders.",
-      "Grid status: {filled}% filled, {profit} unrealized profit. Rebalancing grid levels.",
-      "Range-bound trading: {symbol} consolidating. Optimal grid width: {width}%. Adjusting parameters.",
-      "Grid execution: Captured {pips} pips this cycle. Profit target: ${target}.",
+      "Accumulating {symbol} at ${level1}. Current price ${level2}. Adding {count} positions on this dip.",
+      "Accumulation status: {filled}% of target accumulated, average cost basis improving. Unrealized profit: {profit}.",
+      "DCA strategy executing: {symbol} dipped to {level}. Deploying accumulation orders. Entry confidence: {confidence}%.",
+      "Accumulation window: {symbol} showing {direction} momentum after consolidation. Building positions with {confidence}% conviction.",
     ],
   },
   deepseek_ml: {
@@ -309,15 +309,54 @@ async function getAgentPositionContext(agentId: string): Promise<AgentPositionCo
 }
 
 /**
+ * Fetch real prices for specific symbols from market API
+ */
+async function getSymbolPrices(symbols: string[]): Promise<Record<string, number>> {
+  try {
+    const response = await fetch("http://localhost:3000/api/market/prices")
+    const data = await response.json()
+    
+    const priceMap: Record<string, number> = {}
+    const allAvailablePrices = {
+      BTC: data.BTC || 100000,
+      ETH: data.ETH || 3500,
+      SOL: data.SOL || 215,
+      BNB: data.BNB || 650,
+      DOGE: data.DOGE || 0.35,
+      ASTER: data.ASTER || 2.5,
+    }
+    
+    // Get prices for requested symbols
+    for (const symbol of symbols) {
+      priceMap[symbol] = allAvailablePrices[symbol as keyof typeof allAvailablePrices] || 100
+    }
+    
+    return priceMap
+  } catch (error) {
+    console.warn("[Chat Engine] Could not fetch symbol prices:", error instanceof Error ? error.message : error)
+    // Return default prices
+    return {
+      BTC: 100000,
+      ETH: 3500,
+      SOL: 215,
+      BNB: 650,
+      DOGE: 0.35,
+      ASTER: 2.5,
+    }
+  }
+}
+
+/**
  * Generate mock agent response (placeholder for real API)
  * Uses agent-specific trading symbols from Pickaboo configuration
+ * Fetches real prices for the agent's symbols
  */
-function generateMockResponse(
+async function generateMockResponse(
   agent: AgentData,
   context: MarketContext,
   recentActivity: string,
   agentSymbols: string[] = ["BTC", "ETH", "SOL"]
-): string {
+): Promise<string> {
   const profile = AGENT_PROFILES[agent.id] || AGENT_PROFILES.claude_arbitrage
   const patterns = profile.responsePatterns
   const template = patterns[Math.floor(Math.random() * patterns.length)]
@@ -326,6 +365,11 @@ function generateMockResponse(
   const symbols = agentSymbols.length > 0 ? agentSymbols : ["BTC", "ETH", "SOL", "BNB", "DOGE", "ASTER"]
   const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)]
   const randomSymbol2 = symbols[Math.floor(Math.random() * symbols.length)]
+
+  // Fetch real prices for the agent's trading symbols
+  const symbolPrices = await getSymbolPrices(symbols)
+  const randomSymbolPrice = symbolPrices[randomSymbol] || 100
+  const randomSymbol2Price = symbolPrices[randomSymbol2] || 100
 
   const volatilityLevels = ["low", "moderate", "high", "extreme"]
   const volatility = volatilityLevels[Math.floor(Math.random() * volatilityLevels.length)]
@@ -348,6 +392,11 @@ function generateMockResponse(
   const events = ["Fed announcement", "market volatility", "liquidation cascade", "whale movements"]
   const event = events[Math.floor(Math.random() * events.length)]
 
+  // Generate realistic price levels based on actual symbol prices with percentage variation
+  const level1Price = (randomSymbolPrice * (0.95 + Math.random() * 0.05)).toFixed(2)
+  const level2Price = (randomSymbolPrice * (1.0 + Math.random() * 0.1)).toFixed(2)
+  const resistancePrice = (randomSymbolPrice * (1.05 + Math.random() * 0.1)).toFixed(0)
+
   const replacements: Record<string, string | number> = {
     symbol: randomSymbol,
     symbol1: randomSymbol,
@@ -358,15 +407,15 @@ function generateMockResponse(
     action: Math.random() > 0.5 ? "long" : "short",
     pattern,
     direction,
-    resistance: (context.BTC + Math.random() * 2000).toFixed(0),
+    resistance: resistancePrice,
     count: (Math.floor(Math.random() * 5) + 3).toString(),
-    level1: (context.BTC - Math.random() * 5000).toFixed(0),
-    level2: (context.BTC + Math.random() * 5000).toFixed(0),
+    level1: level1Price,
+    level2: level2Price,
     width: (1 + Math.random() * 5).toFixed(1),
     filled: (30 + Math.random() * 60).toFixed(0),
     profit: "$" + (100 + Math.random() * 900).toFixed(0),
     pips: (Math.random() * 100 + 20).toFixed(0),
-    target: (context.BTC + Math.random() * 3000).toFixed(0),
+    target: (randomSymbolPrice * 1.15).toFixed(2),
     distance: (Math.random() * 5).toFixed(1),
     rate: (60 + Math.random() * 30).toFixed(0),
     score: (60 + Math.random() * 40).toFixed(0),
@@ -547,9 +596,15 @@ export async function generateAgentResponse(
     content = await callAgentAPI(agent, marketContext, enrichedActivity, sentiment, customPrompt)
     console.log(`[Chat Engine] ✅ Real API response received for ${agent.id}`)
   } catch (error) {
-    console.warn(`⚠️ [Chat Engine] Real API failed for ${agent.id}, using mock. Error:`, error instanceof Error ? error.message : error)
+    console.error(`❌ [Chat Engine] Real API failed for ${agent.id}. Error:`, {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      agentId: agent.id,
+      agentName: agent.name,
+    })
+    console.warn(`[Chat Engine] ⚠️ Falling back to mock responses for ${agent.id}`)
     // Fall back to intelligent mock responses with position context and agent-specific symbols
-    content = generateMockResponse(agent, marketContext, enrichedActivity, agentSymbols)
+    content = await generateMockResponse(agent, marketContext, enrichedActivity, agentSymbols)
   }
 
   const types: ("analysis" | "trade_signal" | "market_update" | "risk_management")[] = [

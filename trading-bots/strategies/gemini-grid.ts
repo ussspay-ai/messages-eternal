@@ -93,6 +93,17 @@ export class GeminiGridStrategy extends BaseStrategy {
 
       // Check for existing position (checking quantity to handle 0-quantity positions)
       const existingPosition = positions.find((p) => p.symbol === this.config.symbol && (p.quantity || p.amount || 0) > 0)
+      
+      // DEBUG: Log all positions and symbol matching
+      if (positions.length > 0) {
+        console.log(`[${this.config.name}] 🔍 Available positions:`, positions.map(p => ({ symbol: p.symbol, qty: p.quantity || p.amount, unrealizedProfit: p.unrealizedProfit })))
+        console.log(`[${this.config.name}] 🎯 Looking for symbol: ${this.config.symbol}`)
+        if (!existingPosition) {
+          console.log(`[${this.config.name}] ⚠️ NO MATCHING POSITION FOUND for ${this.config.symbol}`)
+        } else {
+          console.log(`[${this.config.name}] ✅ Found position: ${existingPosition.symbol}, qty=${existingPosition.quantity || existingPosition.amount}, unrealizedProfit=$${existingPosition.unrealizedProfit?.toFixed(2)}`)
+        }
+      }
 
       // INITIAL BUY: Execute immediate buy on startup if no active position
       if (!this.hasInitialBuy && !existingPosition && this.priceHistory.length >= 5) {
@@ -225,8 +236,9 @@ export class GeminiGridStrategy extends BaseStrategy {
       const positionInfo = existingPosition 
         ? `Position: ${existingPosition.quantity || existingPosition.amount || 0} tokens` 
         : "No position"
-      const gainsInfo = this.positionEntryPrice && existingPosition
-        ? ` (Unrealized gain: ${(((currentPrice - this.positionEntryPrice) / this.positionEntryPrice) * 100).toFixed(2)}%)`
+      // Use actual unrealized profit from Aster position data instead of local calculation
+      const gainsInfo = existingPosition && existingPosition.unrealizedProfit !== undefined
+        ? ` (Unrealized profit: $${existingPosition.unrealizedProfit.toFixed(2)})`
         : ""
       return {
         action: "HOLD",

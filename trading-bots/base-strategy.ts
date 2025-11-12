@@ -11,6 +11,7 @@
  */
 
 import { AsterClient } from "./lib/aster-client.ts"
+import { BinancePriceClient } from "./lib/binance-price-client"
 import { 
   saveAgentTrade, 
   saveAgentSignal, 
@@ -65,6 +66,7 @@ export interface StrategyState {
 
 export abstract class BaseStrategy {
   protected client: AsterClient
+  protected priceClient: BinancePriceClient
   protected config: AgentConfig
   protected state: StrategyState
   protected scanIntervalMs: number = 15000 // Check every 15 seconds (reduced from 5s to stay below API rate limits)
@@ -79,6 +81,7 @@ export abstract class BaseStrategy {
       userApiKey: config.userApiKey,
       userApiSecret: config.userApiSecret,
     })
+    this.priceClient = new BinancePriceClient()
     this.state = {
       lastSignalTime: 0,
       orders: new Map(),
@@ -102,14 +105,22 @@ export abstract class BaseStrategy {
         try {
           // Get current market and account data
           const stats = await this.client.getAccountInfo()
-          const marketPrice = await this.client.getMarketPrice(this.config.symbol)
+          // Fetch price from Binance instead of Aster
+          const marketPrice = await this.priceClient.getMarketPrice(this.config.symbol)
           const positionsData = await this.client.getPositions()
 
+          // DEBUG: Verify correct symbol and price
+          console.log(`[${this.config.name}] 📊 Market Price - Symbol: ${marketPrice.symbol}, Price: ${marketPrice.price}, Requested: ${this.config.symbol}`)
+          if (marketPrice.symbol !== this.config.symbol) {
+            console.warn(`[${this.config.name}] ⚠️ SYMBOL MISMATCH! Requested: ${this.config.symbol}, Got: ${marketPrice.symbol}`)
+          }
+
           // Log thinking/analysis process
-          await this.logThinking('analysis', `Analyzing ${this.config.symbol} at $${marketPrice.price}`, {
+          await this.logThinking('analysis', `Analyzing ${this.config.symbol} at $${marketPrice.price} (from Binance)`, {
             price: parseFloat(marketPrice.price),
             equity: stats.equity,
             openPositions: positionsData.positions.length,
+            priceSource: 'binance',
           })
 
           // Generate trading signal

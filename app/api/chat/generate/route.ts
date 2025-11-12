@@ -1,14 +1,14 @@
 /**
  * Chat Generation API Endpoint
  * Generates and stores agent chat messages
- * Called every minute to keep conversation flowing
+ * Called every 15 minutes to generate 2 messages per agent
  * 
- * Message Expiration: 5 oldest messages expire every 5 minutes
+ * Message Expiration: Keep max 100 total messages (20 per agent on average)
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { generateAllAgentResponses } from "@/lib/chat-engine"
-import { setCache, getCache, CACHE_KEYS } from "@/lib/redis-client"
+import { setCache, getCache, CACHE_KEYS, deleteCache } from "@/lib/redis-client"
 
 interface ChatMessage {
   id: string
@@ -32,7 +32,8 @@ interface Agent {
 
 /**
  * Remove old messages: Keep only recent N messages
- * Implements 5-per-5-minute expiration by removing oldest messages
+ * Maintains max 100 messages total with ~20 messages per agent on average
+ * (2 messages per agent per 15 minutes = 10 messages every 15 min)
  */
 function removeOldMessages(messages: any[], maxMessages: number = 100): any[] {
   if (messages.length <= maxMessages) {
@@ -94,7 +95,8 @@ async function fetchAgentData(): Promise<Agent[]> {
 
 /**
  * POST /api/chat/generate
- * Generates new agent chat messages
+ * Generates 2 new messages per agent (10 total per call)
+ * Should be called every 15 minutes for consistent chat flow
  */
 export async function POST(request: NextRequest) {
   try {
@@ -107,14 +109,20 @@ export async function POST(request: NextRequest) {
       recentTrades: agent.recentTrades ?? 0,
     }))
 
-    // Generate responses for all agents
-    const newMessages = await generateAllAgentResponses(agents)
+    console.log(`[Chat/Generate] Fetched ${agents.length} agents for chat generation`)
+
+    // Generate 2 rounds of responses (2 messages per agent)
+    const round1 = await generateAllAgentResponses(agents)
+    const round2 = await generateAllAgentResponses(agents)
+    const newMessages = [...round1, ...round2]
     
-    // Add createdAt timestamp to new messages
+    console.log(`[Chat/Generate] Generated ${newMessages.length} new messages (2 per agent)`)
+
+    // Add createdAt timestamp to new messages with slight delays between rounds
     const now = Date.now()
-    const messagesWithTimestamp = newMessages.map(msg => ({
+    const messagesWithTimestamp = newMessages.map((msg, idx) => ({
       ...msg,
-      createdAt: now,
+      createdAt: idx < agents.length ? now : now + 100, // 100ms offset for round 2
     }))
 
     // Store in Redis with 1-hour TTL
@@ -125,21 +133,27 @@ export async function POST(request: NextRequest) {
     let allMessages = [...messagesWithTimestamp, ...existingMessages]
     
     // Apply expiration: Keep max 100 messages
-    // This naturally implements ~5 messages expiring every 5 minutes
-    // (with ~5 messages generated per minute)
+    // With 10 messages every 15 minutes: ~100 messages = 150 minutes of history
     allMessages = removeOldMessages(allMessages, 100)
 
     // Cache with 1-hour TTL to survive temporary Redis outages
     await setCache(cacheKey, allMessages, { ttl: 3600 })
 
+    console.log(`[Chat/Generate] Successfully cached ${allMessages.length} total messages`)
+
     return NextResponse.json({
       success: true,
+      messagesGenerated: newMessages.length,
       messages: messagesWithTimestamp,
       timestamp: new Date().toISOString(),
       totalCached: allMessages.length,
     })
   } catch (error) {
-    console.error("Chat generation error:", error)
+    console.error("[Chat/Generate] ❌ Chat generation error:", error)
+    console.error("[Chat/Generate] Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json(
       {
         success: false,
@@ -153,7 +167,7 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/chat/generate
  * Retrieves chat message history
- * Messages are automatically expired: 5 oldest messages removed every ~5 minutes
+ * Messages expire naturally: max 100 messages total (~20 per agent)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -176,7 +190,8 @@ export async function GET(request: NextRequest) {
       success: true,
       messages: filtered,
       total: messages.length,
-      expiration: "5 messages expire every 5 minutes",
+      maxMessages: 100,
+      frequency: "2 messages per agent per 15 minutes",
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -185,6 +200,34 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: error instanceof Error ? error.message : "Failed to retrieve chat messages",
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * DELETE /api/chat/generate
+ * Clears all chat messages
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const cacheKey = CACHE_KEYS.market("chat:messages")
+    await deleteCache(cacheKey)
+
+    console.log("[Chat/Generate] 🗑️ Cleared all chat messages")
+
+    return NextResponse.json({
+      success: true,
+      message: "All chat messages cleared successfully",
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("[Chat/Generate] Error clearing messages:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to clear chat messages",
       },
       { status: 500 }
     )

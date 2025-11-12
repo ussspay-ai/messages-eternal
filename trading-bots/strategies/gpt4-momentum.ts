@@ -252,11 +252,18 @@ export class ChatGPTOpenAIStrategy extends BaseStrategy {
         }
       }
 
+      // HOLD: Use actual unrealized profit from Aster position data
+      const positionInfo = existingPosition 
+        ? `Position: ${existingPosition.quantity || existingPosition.amount || 0} tokens` 
+        : "No position"
+      const gainsInfo = existingPosition && existingPosition.unrealizedProfit !== undefined
+        ? ` (Unrealized profit: $${existingPosition.unrealizedProfit.toFixed(2)})`
+        : ""
       return {
         action: "HOLD",
         quantity: 0,
         confidence: 0,
-        reason: `Waiting for setup: RSI ${rsi.toFixed(0)}, MACD ${macd.strength.toFixed(0)}`,
+        reason: `Waiting for setup: RSI ${rsi.toFixed(0)}, MACD ${macd.strength.toFixed(0)}. ${positionInfo}${gainsInfo}`,
       }
     } catch (error) {
       console.error("Error in GPT4 Momentum strategy:", error)

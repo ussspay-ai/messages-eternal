@@ -265,11 +265,18 @@ export class ClaudeArbitrageStrategy extends BaseStrategy {
         }
       }
 
+      // HOLD: Use actual unrealized profit from Aster position data
+      const positionInfo = existingPosition 
+        ? `Position: ${existingPosition.quantity || existingPosition.amount || 0} tokens` 
+        : "No position"
+      const gainsInfo = existingPosition && existingPosition.unrealizedProfit !== undefined
+        ? ` (Unrealized profit: $${existingPosition.unrealizedProfit.toFixed(2)})`
+        : ""
       return {
         action: "HOLD",
         quantity: 0,
         confidence: 0,
-        reason: `No setup: Spread ${spreadPercent.toFixed(2)}%, Distance from EMA ${distanceFromEMA.toFixed(2)}%, RSI ${rsi.toFixed(0)}`,
+        reason: `No setup: Spread ${spreadPercent.toFixed(2)}%, Distance from EMA ${distanceFromEMA.toFixed(2)}%, RSI ${rsi.toFixed(0)}. ${positionInfo}${gainsInfo}`,
       }
     } catch (error) {
       console.error("Error in Claude Arbitrage strategy:", error)

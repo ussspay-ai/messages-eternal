@@ -24,11 +24,14 @@ export class BuyAndHoldStrategy extends BaseStrategy {
       if (this.hasInitialBought || existingPosition) {
         this.hasInitialBought = true
         const holdQuantity = existingPosition?.quantity || 0
+        const gainsInfo = existingPosition && existingPosition.unrealizedProfit !== undefined
+          ? ` Unrealized profit: $${existingPosition.unrealizedProfit.toFixed(2)}`
+          : ""
         return {
           action: "HOLD",
           quantity: 0,
           confidence: 1.0,
-          reason: `Holding ${this.config.symbol} position (${holdQuantity.toFixed(8)} units). B&H strategy active.`,
+          reason: `Holding ${this.config.symbol} position (${holdQuantity.toFixed(8)} units). B&H strategy active.${gainsInfo}`,
         }
       }
 

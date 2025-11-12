@@ -15,7 +15,9 @@ export async function callClaudeAPI(
   customPromptTemplate?: string
 ): Promise<string> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY not configured")
+    const error = "ANTHROPIC_API_KEY not configured"
+    console.error(`[LLM-APIs] ❌ Claude API Error for ${agent.id}:`, error)
+    throw new Error(error)
   }
 
   // Use custom prompt if provided, otherwise use default
@@ -65,20 +67,32 @@ Keep your response conversational, specific to your holdings, and focused on EXP
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
+        model: process.env.CLAUDE_MODEL || "claude-3-sonnet-20240229",
         max_tokens: 150,
         messages: [{ role: "user", content: prompt }],
       }),
     })
 
     if (!response.ok) {
-      throw new Error(`Claude API error: ${response.status}`)
+      const errorData = await response.text().catch(() => "")
+      const error = `Claude API error: ${response.status} ${response.statusText}. Response: ${errorData.substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ Claude API HTTP Error:`, error)
+      throw new Error(error)
     }
 
     const data = await response.json()
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      const error = `Claude API returned invalid response: ${JSON.stringify(data).substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ Claude API Response Error:`, error)
+      throw new Error(error)
+    }
+    console.log(`[LLM-APIs] ✅ Claude API success for ${agent.id}`)
     return data.content[0].text
   } catch (error) {
-    console.error("Claude API error:", error)
+    console.error("[LLM-APIs] ❌ Claude API error:", {
+      message: error instanceof Error ? error.message : String(error),
+      agentId: agent.id,
+    })
     throw error
   }
 }
@@ -93,7 +107,9 @@ export async function callOpenAIAPI(
   customPromptTemplate?: string
 ): Promise<string> {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY not configured")
+    const error = "OPENAI_API_KEY not configured"
+    console.error(`[LLM-APIs] ❌ OpenAI API Error for ${agent.id}:`, error)
+    throw new Error(error)
   }
 
   let prompt: string
@@ -140,7 +156,7 @@ Explain your conviction level and strategy without giving financial advice.`
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4-turbo",
+        model: process.env.OPENAI_MODEL || "gpt-4-turbo-preview",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 150,
         temperature: 0.7,
@@ -148,13 +164,25 @@ Explain your conviction level and strategy without giving financial advice.`
     })
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`)
+      const errorData = await response.text().catch(() => "")
+      const error = `OpenAI API error: ${response.status} ${response.statusText}. Response: ${errorData.substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ OpenAI API HTTP Error:`, error)
+      throw new Error(error)
     }
 
     const data = await response.json()
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      const error = `OpenAI API returned invalid response: ${JSON.stringify(data).substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ OpenAI API Response Error:`, error)
+      throw new Error(error)
+    }
+    console.log(`[LLM-APIs] ✅ OpenAI API success for ${agent.id}`)
     return data.choices[0].message.content
   } catch (error) {
-    console.error("OpenAI API error:", error)
+    console.error("[LLM-APIs] ❌ OpenAI API error:", {
+      message: error instanceof Error ? error.message : String(error),
+      agentId: agent.id,
+    })
     throw error
   }
 }
@@ -169,7 +197,9 @@ export async function callGeminiAPI(
   customPromptTemplate?: string
 ): Promise<string> {
   if (!process.env.GOOGLE_API_KEY) {
-    throw new Error("GOOGLE_API_KEY not configured")
+    const error = "GOOGLE_API_KEY not configured"
+    console.error(`[LLM-APIs] ❌ Gemini API Error for ${agent.id}:`, error)
+    throw new Error(error)
   }
 
   let prompt: string
@@ -186,8 +216,8 @@ Current Market Environment:
 Your Portfolio Status: ${activity}
 Current ROI: ${agent.roi.toFixed(2)}%`
   } else {
-    prompt = `You are Gemini Grid, an intelligent grid trading AI managing systematic multi-level trading strategies.
-Explain your GRID STRATEGY and current order management across your holdings.
+    prompt = `You are Gemini Grid, an intelligent accumulation AI executing systematic dollar-cost averaging strategies.
+Explain your ACCUMULATION STRATEGY and current position-building approach across your holdings.
 
 Current Market Environment:
 - BTC: $${context.BTC.toFixed(0)}
@@ -199,17 +229,18 @@ Current Market Environment:
 Your Portfolio Status: ${activity}
 Current ROI: ${agent.roi.toFixed(2)}%
 
-As a grid trading specialist, explain your strategy:
-1. What grid ranges are you maintaining for each asset? How are orders distributed?
-2. Which grids are capturing profits and which are accumulating entries?
-3. How does volatility affect your grid width and order density across different assets?
+As an accumulation specialist, explain your strategy:
+1. What accumulation targets are you pursuing for each asset? What's your average cost basis?
+2. Which assets are you actively accumulating and which are waiting for better entry points?
+3. How do price dips and market volatility trigger your accumulation orders?
 
-Focus on your CURRENT POSITIONS and grid configuration, not predictions about future moves.`
+Focus on your CURRENT ACCUMULATION PLAN and entry strategy, not predictions about future moves.`
   }
 
   try {
+    const geminiModel = process.env.GEMINI_MODEL || "gemini-pro"
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${process.env.GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -226,13 +257,25 @@ Focus on your CURRENT POSITIONS and grid configuration, not predictions about fu
     )
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`)
+      const errorData = await response.text().catch(() => "")
+      const error = `Gemini API error: ${response.status} ${response.statusText}. Response: ${errorData.substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ Gemini API HTTP Error:`, error)
+      throw new Error(error)
     }
 
     const data = await response.json()
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+      const error = `Gemini API returned invalid response: ${JSON.stringify(data).substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ Gemini API Response Error:`, error)
+      throw new Error(error)
+    }
+    console.log(`[LLM-APIs] ✅ Gemini API success for ${agent.id}`)
     return data.candidates[0].content.parts[0].text
   } catch (error) {
-    console.error("Gemini API error:", error)
+    console.error("[LLM-APIs] ❌ Gemini API error:", {
+      message: error instanceof Error ? error.message : String(error),
+      agentId: agent.id,
+    })
     throw error
   }
 }
@@ -247,7 +290,9 @@ export async function callDeepSeekAPI(
   customPromptTemplate?: string
 ): Promise<string> {
   if (!process.env.DEEPSEEK_API_KEY) {
-    throw new Error("DEEPSEEK_API_KEY not configured")
+    const error = "DEEPSEEK_API_KEY not configured"
+    console.error(`[LLM-APIs] ❌ DeepSeek API Error for ${agent.id}:`, error)
+    throw new Error(error)
   }
 
   let prompt: string
@@ -293,7 +338,7 @@ Be specific about your current holdings and explain your model's reasoning, not 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 150,
         temperature: 0.7,
@@ -301,13 +346,25 @@ Be specific about your current holdings and explain your model's reasoning, not 
     })
 
     if (!response.ok) {
-      throw new Error(`DeepSeek API error: ${response.status}`)
+      const errorData = await response.text().catch(() => "")
+      const error = `DeepSeek API error: ${response.status} ${response.statusText}. Response: ${errorData.substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ DeepSeek API HTTP Error:`, error)
+      throw new Error(error)
     }
 
     const data = await response.json()
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      const error = `DeepSeek API returned invalid response: ${JSON.stringify(data).substring(0, 200)}`
+      console.error(`[LLM-APIs] ❌ DeepSeek API Response Error:`, error)
+      throw new Error(error)
+    }
+    console.log(`[LLM-APIs] ✅ DeepSeek API success for ${agent.id}`)
     return data.choices[0].message.content
   } catch (error) {
-    console.error("DeepSeek API error:", error)
+    console.error("[LLM-APIs] ❌ DeepSeek API error:", {
+      message: error instanceof Error ? error.message : String(error),
+      agentId: agent.id,
+    })
     throw error
   }
 }
@@ -324,7 +381,9 @@ export async function callGrokAPI(
   customPromptTemplate?: string
 ): Promise<string> {
   if (!process.env.GROK_API_KEY) {
-    throw new Error("GROK_API_KEY not configured")
+    const error = "GROK_API_KEY not configured"
+    console.error(`[LLM-APIs] ❌ Grok API Error for ${agent.id}:`, error)
+    throw new Error(error)
   }
 
   const sentimentContext = sentiment
@@ -374,7 +433,7 @@ Be specific about HOLDING DECISIONS, conviction levels, and sentiment alignment.
 
   try {
     const requestBody = {
-      model: "grok-2-latest",
+      model: process.env.GROK_MODEL || "grok-2-1212",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 200,
       temperature: 0.6, // Balanced between creativity and factuality

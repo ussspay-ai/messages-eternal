@@ -340,11 +340,18 @@ export class DeepseekMLStrategy extends BaseStrategy {
         }
       }
 
+      // HOLD: Use actual unrealized profit from Aster position data
+      const positionInfo = existingPosition 
+        ? `Position: ${existingPosition.quantity || existingPosition.amount || 0} tokens` 
+        : "No position"
+      const gainsInfo = existingPosition && existingPosition.unrealizedProfit !== undefined
+        ? ` (Unrealized profit: $${existingPosition.unrealizedProfit.toFixed(2)})`
+        : ""
       return {
         action: "HOLD",
         quantity: 0,
         confidence: 0,
-        reason: `Minimal movement (${changePercent.toFixed(2)}%), threshold: ±${movementThreshold.toFixed(2)}%`,
+        reason: `Minimal movement (${changePercent.toFixed(2)}%), threshold: ±${movementThreshold.toFixed(2)}%. ${positionInfo}${gainsInfo}`,
       }
     } catch (error) {
       console.error("Error in DeepSeek ML strategy:", error)
