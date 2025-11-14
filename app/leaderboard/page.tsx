@@ -37,6 +37,7 @@ interface Agent {
   medianConfidence?: number
   status?: "active" | "idle"
   lastUpdate?: string
+  winRatePercent?: number
 }
 
 export default function LeaderboardPage() {
@@ -44,6 +45,7 @@ export default function LeaderboardPage() {
   const [isLive, setIsLive] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  const [previousPnL, setPreviousPnL] = useState<Record<string, number>>({})
   const { toast } = useToast()
 
   const copyToClipboard = async (address: string) => {
@@ -64,6 +66,20 @@ export default function LeaderboardPage() {
     }
   }
 
+  // Calculate win rate percentage based on 5-minute P&L change
+  const calculateWinRate = (agentId: string, currentPnL: number): number => {
+    const prevPnL = previousPnL[agentId]
+    if (prevPnL === undefined) {
+      return 0
+    }
+    
+    if (prevPnL === 0) {
+      return currentPnL === 0 ? 0 : 100
+    }
+    
+    return ((currentPnL - prevPnL) / Math.abs(prevPnL)) * 100
+  }
+
   // Fetch live leaderboard data
   const fetchLeaderboard = async () => {
     try {
@@ -72,7 +88,13 @@ export default function LeaderboardPage() {
       const data = await response.json()
       
       if (data.agents && Array.isArray(data.agents)) {
-        setAgents(data.agents)
+        // Calculate win rate for each agent based on previous P&L
+        const agentsWithWinRate = data.agents.map((agent: Agent) => ({
+          ...agent,
+          winRatePercent: calculateWinRate(agent.id, agent.totalPnL)
+        }))
+        
+        setAgents(agentsWithWinRate)
         setLastUpdate(new Date().toLocaleTimeString())
       }
     } catch (error) {
@@ -82,18 +104,45 @@ export default function LeaderboardPage() {
     }
   }
 
+  // Update P&L snapshot every 5 minutes for win rate calculation
+  const updatePnLSnapshot = async () => {
+    try {
+      const response = await fetch("/api/leaderboard")
+      const data = await response.json()
+      
+      if (data.agents && Array.isArray(data.agents)) {
+        const newPnLSnapshot: Record<string, number> = {}
+        data.agents.forEach((agent: Agent) => {
+          newPnLSnapshot[agent.id] = agent.totalPnL
+        })
+        setPreviousPnL(newPnLSnapshot)
+      }
+    } catch (error) {
+      console.error("Failed to update P&L snapshot:", error)
+    }
+  }
+
   useEffect(() => {
     // Initial fetch
     fetchLeaderboard()
 
     // Set up live updates every 2 seconds
-    const interval = setInterval(() => {
+    const liveInterval = setInterval(() => {
       if (isLive) {
         fetchLeaderboard()
       }
     }, 2000)
 
-    return () => clearInterval(interval)
+    // Set up P&L snapshot update every 5 minutes (300000 ms)
+    // This stores the current P&L as baseline for the next 5-minute period
+    const snapshotInterval = setInterval(() => {
+      updatePnLSnapshot()
+    }, 300000)
+
+    return () => {
+      clearInterval(liveInterval)
+      clearInterval(snapshotInterval)
+    }
   }, [isLive])
 
   const winningAgent = agents[0]
@@ -154,6 +203,7 @@ export default function LeaderboardPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Account Value</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Return %</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Total P&L</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Win Rate % (5m)</th>
               </tr>
             </thead>
             <tbody>
@@ -208,6 +258,14 @@ export default function LeaderboardPage() {
                   >
                     {(agent.totalPnL || 0) >= 0 ? "+" : ""}${formatNumber(agent.totalPnL)}
                   </td>
+                  <td
+                    className={`px-3 py-3 border-t border-gray-200 font-bold ${
+                      (agent.winRatePercent || 0) >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {(agent.winRatePercent || 0) >= 0 ? "+" : ""}
+                    {formatDecimal(agent.winRatePercent || 0)}%
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -217,7 +275,7 @@ export default function LeaderboardPage() {
         <div className="panel p-4 mb-6 md:mb-8 bg-blue-50 border border-blue-200">
           <p className="text-xs md:text-sm text-gray-700">
             <span className="font-semibold">Note:</span> The Aster Wallet{" "}
-            <span className="font-mono font-semibold text-blue-700">0xF9bf5Fa08a5c5496DD839dd3635c47f78192adee</span>{" "}
+            <span className="font-mono font-semibold text-blue-700">0xF9bf5Fa08a5c5496DD839dd3635c47f78192adee </span>{" "}
             is the parent wallet where all the agents trading wallets were generated.
           </p>
         </div>
