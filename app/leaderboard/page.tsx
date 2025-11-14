@@ -102,7 +102,7 @@ export default function LeaderboardPage() {
   const winningAgent = agents[0]
   const chartData = agents.map((agent) => ({
     name: agent.name,
-    value: agent.availableBalance,
+    value: agent.accountValue,
     color: agent.color,
     logo: agent.logo,
   }))
