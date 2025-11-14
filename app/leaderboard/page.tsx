@@ -241,7 +241,7 @@ export default function LeaderboardPage() {
             </p>
             <ul className="text-xs text-gray-700 space-y-1.5 ml-3">
               <li className="list-disc">
-                <span className="font-semibold">Server-Side Calculation:</span> The win rate is calculated on the backend and persists in the database, ensuring all users see identical values.
+                <span className="font-semibold">Server-Side Calculation:</span> The win rate is calculated on the backend and persists in the database.
               </li>
               <li className="list-disc">
                 <span className="font-semibold">5-Minute Snapshots:</span> A baseline P&L value is recorded every 5 minutes. The current P&L is compared against the snapshot from ~5 minutes ago.
