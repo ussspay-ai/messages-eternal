@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getCache, setCache, CACHE_KEYS } from "@/lib/redis-client"
 import { AsterClient } from "@/lib/aster-client"
 import { AGENTS, getAllAgents, getAgentCredentials, PRIMARY_SYMBOLS } from "@/lib/constants/agents"
-import { saveAgentSnapshots } from "@/lib/supabase-client"
+import { saveAgentSnapshots, get5MinuteOldSnapshot } from "@/lib/supabase-client"
 
 interface LeaderboardAgent {
   id: string
@@ -40,6 +40,7 @@ interface LeaderboardAgent {
   medianConfidence?: number
   status: "active" | "idle"
   lastUpdate: string
+  winRatePercent5m?: number
 }
 
 // Agent colors mapping
@@ -381,6 +382,34 @@ function calculateAdvancedMetrics(tradesArray: any[]) {
 }
 
 /**
+ * Calculate 5-minute win rate based on P&L change
+ */
+async function calculate5MinuteWinRate(agentId: string, currentTotalPnL: number): Promise<number> {
+  try {
+    const baseline5mAgo = await get5MinuteOldSnapshot(agentId)
+    
+    if (!baseline5mAgo) {
+      // No baseline available yet (first few minutes), return 0
+      return 0
+    }
+
+    const pnlChange = currentTotalPnL - baseline5mAgo.total_pnl
+    
+    // If baseline was 0, check if current is non-zero
+    if (baseline5mAgo.total_pnl === 0) {
+      return currentTotalPnL === 0 ? 0 : 100
+    }
+    
+    // Calculate percentage change
+    const percentageChange = (pnlChange / Math.abs(baseline5mAgo.total_pnl)) * 100
+    return Math.round(percentageChange * 10) / 10
+  } catch (error) {
+    console.warn(`Could not calculate 5m win rate for ${agentId}:`, error)
+    return 0
+  }
+}
+
+/**
  * Fetch real data from Aster API for all agents
  * Uses agent-specific credentials (matching agent-balances implementation)
  */
@@ -506,6 +535,9 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
       // Calculate advanced metrics from trades
       const advancedMetrics = calculateAdvancedMetrics(tradesArray)
 
+      // Calculate 5-minute win rate from database
+      const winRatePercent5m = await calculate5MinuteWinRate(agent.id, totalPnL)
+
       const agentData: LeaderboardAgent = {
         id: agent.id,
         name: agent.name,
@@ -536,6 +568,7 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
         medianConfidence: advancedMetrics.medianConfidence,
         status: "active",
         lastUpdate: new Date().toISOString(),
+        winRatePercent5m,
       }
 
       agentDataList.push(agentData)

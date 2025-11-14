@@ -37,7 +37,7 @@ interface Agent {
   medianConfidence?: number
   status?: "active" | "idle"
   lastUpdate?: string
-  winRatePercent?: number
+  winRatePercent5m?: number
 }
 
 export default function LeaderboardPage() {
@@ -45,7 +45,6 @@ export default function LeaderboardPage() {
   const [isLive, setIsLive] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
-  const [previousPnL, setPreviousPnL] = useState<Record<string, number>>({})
   const { toast } = useToast()
 
   const copyToClipboard = async (address: string) => {
@@ -66,20 +65,6 @@ export default function LeaderboardPage() {
     }
   }
 
-  // Calculate win rate percentage based on 5-minute P&L change
-  const calculateWinRate = (agentId: string, currentPnL: number): number => {
-    const prevPnL = previousPnL[agentId]
-    if (prevPnL === undefined) {
-      return 0
-    }
-    
-    if (prevPnL === 0) {
-      return currentPnL === 0 ? 0 : 100
-    }
-    
-    return ((currentPnL - prevPnL) / Math.abs(prevPnL)) * 100
-  }
-
   // Fetch live leaderboard data
   const fetchLeaderboard = async () => {
     try {
@@ -88,37 +73,13 @@ export default function LeaderboardPage() {
       const data = await response.json()
       
       if (data.agents && Array.isArray(data.agents)) {
-        // Calculate win rate for each agent based on previous P&L
-        const agentsWithWinRate = data.agents.map((agent: Agent) => ({
-          ...agent,
-          winRatePercent: calculateWinRate(agent.id, agent.totalPnL)
-        }))
-        
-        setAgents(agentsWithWinRate)
+        setAgents(data.agents)
         setLastUpdate(new Date().toLocaleTimeString())
       }
     } catch (error) {
       console.error("Failed to fetch leaderboard:", error)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  // Update P&L snapshot every 5 minutes for win rate calculation
-  const updatePnLSnapshot = async () => {
-    try {
-      const response = await fetch("/api/leaderboard")
-      const data = await response.json()
-      
-      if (data.agents && Array.isArray(data.agents)) {
-        const newPnLSnapshot: Record<string, number> = {}
-        data.agents.forEach((agent: Agent) => {
-          newPnLSnapshot[agent.id] = agent.totalPnL
-        })
-        setPreviousPnL(newPnLSnapshot)
-      }
-    } catch (error) {
-      console.error("Failed to update P&L snapshot:", error)
     }
   }
 
@@ -133,15 +94,8 @@ export default function LeaderboardPage() {
       }
     }, 2000)
 
-    // Set up P&L snapshot update every 5 minutes (300000 ms)
-    // This stores the current P&L as baseline for the next 5-minute period
-    const snapshotInterval = setInterval(() => {
-      updatePnLSnapshot()
-    }, 300000)
-
     return () => {
       clearInterval(liveInterval)
-      clearInterval(snapshotInterval)
     }
   }, [isLive])
 
@@ -260,11 +214,11 @@ export default function LeaderboardPage() {
                   </td>
                   <td
                     className={`px-3 py-3 border-t border-gray-200 font-bold ${
-                      (agent.winRatePercent || 0) >= 0 ? "text-green-600" : "text-red-600"
+                      (agent.winRatePercent5m || 0) >= 0 ? "text-green-600" : "text-red-600"
                     }`}
                   >
-                    {(agent.winRatePercent || 0) >= 0 ? "+" : ""}
-                    {formatDecimal(agent.winRatePercent || 0)}%
+                    {(agent.winRatePercent5m || 0) >= 0 ? "+" : ""}
+                    {formatDecimal(agent.winRatePercent5m || 0)}%
                   </td>
                 </tr>
               ))}

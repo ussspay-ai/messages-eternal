@@ -116,6 +116,39 @@ export async function getLatestSnapshots(): Promise<Record<string, AgentSnapshot
 }
 
 /**
+ * Get snapshot from ~5 minutes ago for win rate calculation
+ * Returns the oldest snapshot within the last 6-7 minutes to give buffer
+ */
+export async function get5MinuteOldSnapshot(agentId: string): Promise<AgentSnapshot | null> {
+  if (!supabase) return null
+
+  try {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const now = new Date().toISOString()
+
+    // Get the snapshot closest to 5 minutes ago
+    const { data, error } = await supabase
+      .from('agent_snapshots')
+      .select('*')
+      .eq('agent_id', agentId)
+      .lte('timestamp', fiveMinutesAgo)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn(`Could not fetch 5m snapshot for ${agentId}:`, error)
+      return null
+    }
+
+    return data || null
+  } catch (error) {
+    console.error('Error fetching 5-minute old snapshot:', error)
+    return null
+  }
+}
+
+/**
  * Funding History Types and Functions
  */
 export interface FundingHistoryRecord {
