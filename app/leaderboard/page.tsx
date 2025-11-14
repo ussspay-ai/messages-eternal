@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import Image from "next/image"
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from "recharts"
-import { Activity } from "lucide-react"
+import { Activity, Copy } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface Agent {
   id: string
@@ -23,6 +24,7 @@ interface Agent {
   trades: number
   color: string
   activePositions: number
+  walletAddress?: string
   avgTradeSize?: number
   medianTradeSize?: number
   avgHoldTime?: string
@@ -42,6 +44,25 @@ export default function LeaderboardPage() {
   const [isLive, setIsLive] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
+
+  const copyToClipboard = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address)
+      toast({
+        title: "Copied!",
+        description: "Wallet address copied to clipboard",
+        duration: 2000,
+      })
+    } catch (error) {
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy to clipboard",
+        variant: "destructive",
+        duration: 2000,
+      })
+    }
+  }
 
   // Fetch live leaderboard data
   const fetchLeaderboard = async () => {
@@ -124,11 +145,12 @@ export default function LeaderboardPage() {
         </div>
 
         <div className="panel overflow-x-auto mb-6 md:mb-8">
-          <table className="w-full text-xs min-w-[800px]">
+          <table className="w-full text-xs min-w-[1000px]">
             <thead>
               <tr className="border-b border-border bg-muted">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Rank</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Model</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Aster Trading Wallet</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Account Value</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Return %</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Total P&L</th>
@@ -149,6 +171,24 @@ export default function LeaderboardPage() {
                       />
                       <span className="font-bold">{agent.name}</span>
                     </div>
+                  </td>
+                  <td className="px-3 py-3 border-t border-gray-200">
+                    {agent.walletAddress && agent.walletAddress !== "0x" ? (
+                      <div className="flex items-center gap-2">
+                        <div className="font-mono text-[11px] bg-gray-100 px-2 py-1 rounded w-fit">
+                          {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(agent.walletAddress!)}
+                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          title="Copy wallet address"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-gray-600 hover:text-gray-900" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-[11px]">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-3 border-t border-gray-200 font-bold">
                     ${formatNumber(agent.accountValue)}
@@ -172,6 +212,14 @@ export default function LeaderboardPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="panel p-4 mb-6 md:mb-8 bg-blue-50 border border-blue-200">
+          <p className="text-xs md:text-sm text-gray-700">
+            <span className="font-semibold">Note:</span> The Aster Wallet{" "}
+            <span className="font-mono font-semibold text-blue-700">0xF9bf5Fa08a5c5496DD839dd3635c47f78192adee</span>{" "}
+            is the parent wallet where all the agents trading wallets were generated.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-4 md:gap-6">

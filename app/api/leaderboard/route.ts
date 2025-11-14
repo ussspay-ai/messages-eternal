@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCache, setCache, CACHE_KEYS } from "@/lib/redis-client"
 import { AsterClient } from "@/lib/aster-client"
-import { getAllAgents, getAgentCredentials, PRIMARY_SYMBOLS } from "@/lib/constants/agents"
+import { AGENTS, getAllAgents, getAgentCredentials, PRIMARY_SYMBOLS } from "@/lib/constants/agents"
 import { saveAgentSnapshots } from "@/lib/supabase-client"
 
 interface LeaderboardAgent {
@@ -27,6 +27,7 @@ interface LeaderboardAgent {
   trades: number
   color: string
   activePositions: number
+  walletAddress?: string
   avgTradeSize?: number
   medianTradeSize?: number
   avgHoldTime?: string
@@ -186,26 +187,30 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
     }
 
     // Transform agents-data response to LeaderboardAgent format
-    const agents: LeaderboardAgent[] = data.agents.map((agent: any) => ({
-      id: agent.id,
-      name: agent.name,
-      model: agent.model,
-      logo: agent.logo_url,
-      accountValue: agent.account_value || 0,
-      availableBalance: agent.available_balance || agent.account_value || 0,
-      returnPercent: agent.roi || 0,
-      totalPnL: agent.total_pnl || 0,
-      fees: 0,
-      winRate: 0,
-      biggestWin: 0,
-      biggestLoss: 0,
-      sharpe: 0,
-      trades: 0,
-      color: AGENT_COLORS[agent.id] || "#999999",
-      activePositions: agent.open_positions || 0,
-      status: "active" as const,
-      lastUpdate: agent.timestamp || new Date().toISOString(),
-    }))
+    const agents: LeaderboardAgent[] = data.agents.map((agent: any) => {
+      const agentConfig = AGENTS[agent.id as keyof typeof AGENTS]
+      return {
+        id: agent.id,
+        name: agent.name,
+        model: agent.model,
+        logo: agent.logo_url,
+        accountValue: agent.account_value || 0,
+        availableBalance: agent.available_balance || agent.account_value || 0,
+        returnPercent: agent.roi || 0,
+        totalPnL: agent.total_pnl || 0,
+        fees: 0,
+        winRate: 0,
+        biggestWin: 0,
+        biggestLoss: 0,
+        sharpe: 0,
+        trades: 0,
+        color: AGENT_COLORS[agent.id] || "#999999",
+        activePositions: agent.open_positions || 0,
+        walletAddress: agentConfig?.aster_account_id,
+        status: "active" as const,
+        lastUpdate: agent.timestamp || new Date().toISOString(),
+      }
+    })
 
     // Fetch trades for each agent to calculate win rate and other metrics
     for (const agent of agents) {
@@ -518,6 +523,7 @@ async function fetchRealAgentsData(): Promise<LeaderboardAgent[]> {
         trades: tradesArray.length,
         color: AGENT_COLORS[agent.id] || "#999999",
         activePositions,
+        walletAddress: agent.aster_account_id,
         avgTradeSize: advancedMetrics.avgTradeSize,
         medianTradeSize: advancedMetrics.medianTradeSize,
         avgHoldTime: advancedMetrics.avgHoldTime,
