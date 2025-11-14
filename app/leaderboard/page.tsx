@@ -153,7 +153,7 @@ export default function LeaderboardPage() {
               <tr className="border-b border-border bg-muted">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Rank</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Model</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Aster Trading Wallet</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Agents Aster Trading Wallet</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Account Value</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Return %</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Total P&L</th>
