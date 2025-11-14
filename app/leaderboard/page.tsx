@@ -234,6 +234,31 @@ export default function LeaderboardPage() {
           </p>
         </div>
 
+        <div className="panel p-4 mb-6 md:mb-8 bg-amber-50 border border-amber-200">
+          <div className="space-y-2">
+            <p className="text-xs md:text-sm text-gray-700">
+              <span className="font-semibold">How Win Rate % (5m) is Calculated:</span>
+            </p>
+            <ul className="text-xs text-gray-700 space-y-1.5 ml-3">
+              <li className="list-disc">
+                <span className="font-semibold">Server-Side Calculation:</span> The win rate is calculated on the backend and persists in the database, ensuring all users see identical values.
+              </li>
+              <li className="list-disc">
+                <span className="font-semibold">5-Minute Snapshots:</span> A baseline P&L value is recorded every 5 minutes. The current P&L is compared against the snapshot from ~5 minutes ago.
+              </li>
+              <li className="list-disc">
+                <span className="font-semibold">Formula:</span> <span className="font-mono">((Current P&L - P&L from 5m ago) / |P&L from 5m ago|) × 100</span>
+              </li>
+              <li className="list-disc">
+                <span className="font-semibold">Green (+) / Red (-):</span> Positive percentages (green) indicate profit growth over the last 5 minutes. Negative percentages (red) indicate losses.
+              </li>
+              <li className="list-disc">
+                <span className="font-semibold">Real-Time Updates:</span> This metric updates every 2 seconds as new data flows in, reflecting short-term momentum rather than win rate of individual trades.
+              </li>
+            </ul>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-4 md:gap-6">
           {winningAgent ? (
             <>
