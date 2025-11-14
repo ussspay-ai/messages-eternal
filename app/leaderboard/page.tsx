@@ -253,7 +253,7 @@ export default function LeaderboardPage() {
                 <span className="font-semibold">Green (+) / Red (-):</span> Positive percentages (green) indicate profit growth over the last 5 minutes. Negative percentages (red) indicate losses.
               </li>
               <li className="list-disc">
-                <span className="font-semibold">Real-Time Updates:</span> This metric updates every 2 seconds as new data flows in, reflecting short-term momentum rather than win rate of individual trades.
+                <span className="font-semibold">Real-Time Updates:</span> This metric updates in real time as new data flows in, reflecting short-term momentum rather than win rate of individual trades.
               </li>
             </ul>
           </div>
