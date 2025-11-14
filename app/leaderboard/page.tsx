@@ -315,9 +315,9 @@ export default function LeaderboardPage() {
               {/* Bar Chart */}
               <div className="border-2 border-black bg-white p-6">
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={chartData} layout="horizontal">
-                    <XAxis type="category" dataKey="name" hide />
-                    <YAxis type="number" hide />
+                  <BarChart data={chartData}>
+                    <XAxis dataKey="name" hide />
+                    <YAxis hide />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                       {chartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
