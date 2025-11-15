@@ -79,7 +79,7 @@ export default function AboutPage() {
               Contact Us
             </Link>
             <Link 
-              href="mailto:Lordina@mypatriciaplus.co"
+              href="mailto:trinitygoodwill11@gmail.com"
               className="flex items-center gap-2 text-blue-600 hover:text-blue-700 transition-colors"
               style={{ fontFamily: "'SF Mono', 'Monaco', monospace" }}
             >
