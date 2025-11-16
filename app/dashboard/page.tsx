@@ -61,51 +61,63 @@ const getAgentEmoji = (agentId: string): string => {
   return emojis[agentId] || "⚙️"
 }
 
-// Custom per-line tooltip that shows only hovered agent's balance
+// Custom tooltip that shows ALL agents' historical balance at hovered timestamp
 const CustomTooltip = (props: any) => {
   const { active, payload, agents } = props
   if (!active || !payload || payload.length === 0) return null
 
-  // Get the dataKey of the first (and only visible) payload
-  const dataKey = payload[0]?.dataKey as string
+  // Get timestamp from the first payload item
+  const timestamp = payload[0]?.payload?.time
   
-  console.log(`🔍 [Tooltip] Looking for agent with dataKey: "${dataKey}"`)
-  console.log(`🔍 [Tooltip] Available agents:`, agents?.map((a: Agent) => ({ id: a.id, name: a.name, availableCash: a.availableCash })))
-  
-  // Find the agent with matching ID
-  const agent = agents?.find((a: Agent) => a.id === dataKey)
-  
-  if (!agent) {
-    console.log(`🔍 [Tooltip] ⚠️ Agent not found for dataKey: "${dataKey}", payload value: ${payload[0]?.value}`)
-    return null
-  }
-
-  // Use REAL-TIME availableCash from agent state (from /api/aster/account endpoint)
-  // This is the true available balance, NOT the equity (which includes unrealized PnL)
-  // Falls back to chart data if agent balance is not yet loaded
-  const realtimeBalance = agent.availableCash ?? payload[0]?.value ?? 0
-  
-  // Debug logging
-  console.log(`🔍 [Tooltip] ${agent.name} - availableCash: ${agent.availableCash}, payload value: ${payload[0]?.value}, using: ${realtimeBalance}`)
+  console.log(`🔍 [Tooltip] Showing historical values at timestamp: "${timestamp}"`)
+  console.log(`🔍 [Tooltip] Payload items:`, payload.length)
 
   return (
     <div
       style={{
-        backgroundColor: "white",
+        backgroundColor: "rgba(255, 255, 255, 0.95)",
         border: "1px solid #ccc",
         borderRadius: "2px",
-        padding: "6px 10px",
+        padding: "8px 12px",
         fontSize: "9px",
         fontFamily: "Space Mono",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        maxWidth: "250px",
       }}
     >
-      <div style={{ color: agent.color, fontWeight: "bold", marginBottom: "3px" }}>
-        {agent.name}
+      {/* Timestamp header */}
+      <div style={{ color: "#666", marginBottom: "6px", fontSize: "8px" }}>
+        {timestamp ? new Date(timestamp).toLocaleString() : "---"}
       </div>
-      <div style={{ color: "#000" }}>
-        Balance: ${(realtimeBalance as number)?.toLocaleString()}
-      </div>
+
+      {/* Each agent's balance at this timestamp */}
+      {payload.map((item: any, index: number) => {
+        const agent = agents?.find((a: Agent) => a.id === item.dataKey)
+        if (!agent) return null
+
+        // Use the historical value from chart data (NOT real-time balance)
+        const historicalBalance = item.value ?? 0
+        
+        return (
+          <div
+            key={item.dataKey}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              marginBottom: index < payload.length - 1 ? "4px" : "0",
+              color: "#000",
+            }}
+          >
+            <span style={{ color: agent.color, fontWeight: "bold" }}>
+              {agent.name}:
+            </span>
+            <span style={{ fontWeight: "bold" }}>
+              ${(historicalBalance as number)?.toLocaleString()}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1255,8 +1267,7 @@ export default function DashboardPage() {
                       stroke="#999"
                       style={{ fontSize: "8px", fontFamily: "Space Mono" }}
                       tickLine={false}
-                      domain={[0, "dataMax + 100"]}
-                      ticks={[0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255]}
+                      domain={[0, "dataMax + 50"]}
                       tickFormatter={(value) => `$${value}`}
                     />
                     <Tooltip
@@ -1274,7 +1285,7 @@ export default function DashboardPage() {
                           type="monotone"
                           dataKey={agent.id}
                           stroke={agent.color}
-                          strokeWidth={selectedAgent ? 1.25 : 0.75}
+                          strokeWidth={selectedAgent ? 1.75 : 1.25}
                           dot={renderEndDot(agent.id, agent.color, agent.logo)}
                           isAnimationActive={true}
                           animationDuration={600}
