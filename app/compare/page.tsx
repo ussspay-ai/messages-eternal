@@ -393,22 +393,6 @@ export default function ComparePage() {
                         </td>
                       ))}
                     </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="py-3 px-2 font-bold">Sharpe Ratio</td>
-                      {selectedAgentData.map((agent) => (
-                        <td key={agent.id} className="py-3 px-2 text-center">
-                          {(agent.sharpe || 0).toFixed(3)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="py-3 px-2 font-bold">Avg Trade Size</td>
-                      {selectedAgentData.map((agent) => (
-                        <td key={agent.id} className="py-3 px-2 text-center">
-                          ${(agent.avgTradeSize || 0).toLocaleString()}
-                        </td>
-                      ))}
-                    </tr>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <td className="py-3 px-2 font-bold">Avg Leverage</td>
                       {selectedAgentData.map((agent) => (
@@ -477,30 +461,6 @@ export default function ComparePage() {
                         </td>
                       ))}
                     </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="py-3 px-2 font-bold">Biggest Win</td>
-                      {selectedAgentData.map((agent) => (
-                        <td key={agent.id} className="py-3 px-2 text-center text-green-600">
-                          ${(agent.biggestWin || 0).toFixed(2)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <td className="py-3 px-2 font-bold">Biggest Loss</td>
-                      {selectedAgentData.map((agent) => (
-                        <td key={agent.id} className="py-3 px-2 text-center text-red-600">
-                          ${(agent.biggestLoss || 0).toFixed(2)}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="py-3 px-2 font-bold">Long Bias %</td>
-                      {selectedAgentData.map((agent) => (
-                        <td key={agent.id} className="py-3 px-2 text-center">
-                          {(agent.longPercent || 0).toFixed(1)}%
-                        </td>
-                      ))}
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -515,7 +475,6 @@ export default function ComparePage() {
                       name: agent.name.split(" ")[0],
                       "Return %": Math.max(0, agent.returnPercent || 0),
                       "Win Rate": Math.max(0, agent.winRate || 0),
-                      "Sharpe Ratio": Math.max(0, (agent.sharpe || 0) * 10),
                     }))}
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                   >
@@ -539,7 +498,6 @@ export default function ComparePage() {
                     <Legend wrapperStyle={{ fontSize: "10px", fontFamily: "Space Mono" }} />
                     <Bar dataKey="Return %" fill="#10B981" />
                     <Bar dataKey="Win Rate" fill="#3B82F6" />
-                    <Bar dataKey="Sharpe Ratio" fill="#8B5CF6" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

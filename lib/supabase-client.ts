@@ -117,21 +117,23 @@ export async function getLatestSnapshots(): Promise<Record<string, AgentSnapshot
 
 /**
  * Get snapshot from ~5 minutes ago for win rate calculation
- * Returns the oldest snapshot within the last 6-7 minutes to give buffer
+ * Returns the oldest snapshot within the last 3-7 minutes (more lenient window)
  */
 export async function get5MinuteOldSnapshot(agentId: string): Promise<AgentSnapshot | null> {
   if (!supabase) return null
 
   try {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-    const now = new Date().toISOString()
+    // More lenient window: look for snapshots 3-7 minutes old
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString()
+    const sevenMinutesAgo = new Date(Date.now() - 7 * 60 * 1000).toISOString()
 
-    // Get the snapshot closest to 5 minutes ago
+    // Get the snapshot closest to 5 minutes ago (within 3-7 minute window)
     const { data, error } = await supabase
       .from('agent_snapshots')
       .select('*')
       .eq('agent_id', agentId)
-      .lte('timestamp', fiveMinutesAgo)
+      .lte('timestamp', threeMinutesAgo)
+      .gte('timestamp', sevenMinutesAgo)
       .order('timestamp', { ascending: false })
       .limit(1)
       .single()

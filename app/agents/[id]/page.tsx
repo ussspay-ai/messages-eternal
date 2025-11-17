@@ -9,6 +9,113 @@ import { TokenIcon } from "@/components/token-icon"
 import { XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Area, AreaChart } from "recharts"
 import { calculateAllMetrics } from "@/lib/metrics-calculator"
 
+/**
+ * Format holding time from milliseconds to readable string
+ */
+function formatHoldingTime(milliseconds: number): string {
+  const seconds = Math.floor(milliseconds / 1000)
+  if (seconds < 60) return `${seconds}s`
+  
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`
+  
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ${minutes % 60}m`
+  
+  const days = Math.floor(hours / 24)
+  return `${days}d ${hours % 24}h`
+}
+
+/**
+ * Reconstruct complete round-trip trades from individual fills
+ * Aster API returns individual BUY/SELL fills, we need to pair them into complete trades
+ */
+function reconstructCompleteTrades(asterFills: any[]): any[] {
+  // Sort by time to process chronologically
+  const sortedFills = [...asterFills].sort((a, b) => a.time - b.time)
+  
+  // Group fills by symbol to process separately
+  const fillsBySymbol: Record<string, any[]> = {}
+  sortedFills.forEach(fill => {
+    if (!fillsBySymbol[fill.symbol]) {
+      fillsBySymbol[fill.symbol] = []
+    }
+    fillsBySymbol[fill.symbol].push(fill)
+  })
+  
+  const completeTrades: any[] = []
+  const usedIndices = new Set<number>()
+  
+  // For each symbol, reconstruct trades by pairing entry/exit fills
+  Object.entries(fillsBySymbol).forEach(([symbol, fills]) => {
+    let i = 0
+    while (i < fills.length) {
+      // Skip already paired fills
+      if (usedIndices.has(i)) {
+        i++
+        continue
+      }
+      
+      const entryFill = fills[i]
+      
+      // Determine if this is an entry or exit based on positionSide and side
+      const isLongEntry = entryFill.positionSide === "LONG" && entryFill.side === "BUY"
+      const isShortEntry = entryFill.positionSide === "SHORT" && entryFill.side === "SELL"
+      const isEntry = isLongEntry || isShortEntry
+      
+      // If this is an entry, look for matching exit
+      if (isEntry) {
+        let exitFill = null
+        let exitIndex = -1
+        
+        // Search for matching exit fill
+        for (let j = i + 1; j < fills.length; j++) {
+          const potentialExit = fills[j]
+          const isLongExit = entryFill.positionSide === "LONG" && potentialExit.side === "SELL"
+          const isShortExit = entryFill.positionSide === "SHORT" && potentialExit.side === "BUY"
+          
+          if (isLongExit || isShortExit) {
+            exitFill = potentialExit
+            exitIndex = j
+            break
+          }
+        }
+        
+        if (exitFill) {
+          // Create complete trade record
+          const holdingTimeMs = exitFill.time - entryFill.time
+          const tradeId = `${entryFill.id}-${exitFill.id}`
+          
+          completeTrades.push({
+            id: tradeId,
+            side: entryFill.positionSide === "LONG" ? "LONG" : "SHORT",
+            coin: symbol.replace("USDT", ""),
+            entryPrice: parseFloat(entryFill.price),
+            exitPrice: parseFloat(exitFill.price),
+            quantity: parseFloat(entryFill.qty),
+            holdingTime: formatHoldingTime(holdingTimeMs),
+            notionalEntry: parseFloat(entryFill.price) * parseFloat(entryFill.qty),
+            notionalExit: parseFloat(exitFill.price) * parseFloat(exitFill.qty),
+            totalFees: parseFloat(entryFill.commission) + parseFloat(exitFill.commission),
+            // Use realizedPnl from exit fill, or calculate if not available
+            netPnl: exitFill.realizedPnl !== undefined ? parseFloat(exitFill.realizedPnl) : 0,
+            entryTime: entryFill.time,
+            exitTime: exitFill.time,
+          })
+          
+          usedIndices.add(i)
+          usedIndices.add(exitIndex)
+        }
+      }
+      
+      i++
+    }
+  })
+  
+  // Sort trades by exit time descending (most recent first)
+  return completeTrades.sort((a, b) => b.exitTime - a.exitTime)
+}
+
 interface Agent {
   id: string
   name: string
@@ -147,28 +254,28 @@ export default function AgentDetailPage() {
           // Keep existing mock positions if API fails
         })
 
-      // Fetch live trades for the agent (25 trades instead of 20)
-      // Show all trades, including breakeven trades (realizedPnl === 0)
-      fetch(`/api/aster/trades?agentId=${params.id}&limit=25`)
+      // Fetch live trades for the agent
+      // Reconstruct complete round-trip trades from individual fills
+      fetch(`/api/aster/trades?agentId=${params.id}&limit=100`)
         .then((res) => res.json())
-        .then((asterTrades) => {
-          const trades: Trade[] = asterTrades
-            // Show ALL trades, not just profitable ones
-            .map((t: any) => ({
-              id: t.id,
-              side: t.side === "BUY" ? "LONG" : "SHORT",
-              coin: t.symbol.replace("USDT", ""),
-              coinIcon: "📊",
-              entryPrice: t.price,
-              exitPrice: t.price,
-              quantity: t.qty,
-              holdingTime: "N/A",
-              notionalEntry: t.price * t.qty,
-              notionalExit: t.price * t.qty,
-              totalFees: t.commission,
-              netPnl: t.realizedPnl,
-            }))
+        .then((asterFills) => {
+          // Reconstruct complete trades from fills and limit to 25 most recent
+          const completeTrades = reconstructCompleteTrades(asterFills)
+          const trades: Trade[] = completeTrades.slice(0, 25).map((t: any) => ({
+            id: t.id,
+            side: t.side,
+            coin: t.coin,
+            entryPrice: t.entryPrice,
+            exitPrice: t.exitPrice,
+            quantity: t.quantity,
+            holdingTime: t.holdingTime,
+            notionalEntry: t.notionalEntry,
+            notionalExit: t.notionalExit,
+            totalFees: t.totalFees,
+            netPnl: t.netPnl,
+          }))
           setTrades(trades)
+          console.log(`[Agent Detail] Reconstructed ${completeTrades.length} trades from fills, displaying 25 most recent`)
         })
         .catch((err) => {
           console.debug("Failed to fetch trades:", err)

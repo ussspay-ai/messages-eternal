@@ -389,20 +389,27 @@ async function calculate5MinuteWinRate(agentId: string, currentTotalPnL: number)
     const baseline5mAgo = await get5MinuteOldSnapshot(agentId)
     
     if (!baseline5mAgo) {
-      // No baseline available yet (first few minutes), return 0
+      // No baseline available yet - log this to diagnose data collection issues
+      console.debug(`[Leaderboard] No 5m baseline for ${agentId} - snapshots may not have 3-7m history yet`)
       return 0
     }
 
     const pnlChange = currentTotalPnL - baseline5mAgo.total_pnl
     
+    console.debug(`[Leaderboard] ${agentId} 5m PnL: baseline=$${baseline5mAgo.total_pnl} current=$${currentTotalPnL} change=$${pnlChange}`)
+    
     // If baseline was 0, check if current is non-zero
     if (baseline5mAgo.total_pnl === 0) {
-      return currentTotalPnL === 0 ? 0 : 100
+      const rate = currentTotalPnL === 0 ? 0 : 100
+      console.debug(`[Leaderboard] ${agentId} 5m win rate (zero baseline): ${rate}%`)
+      return rate
     }
     
     // Calculate percentage change
     const percentageChange = (pnlChange / Math.abs(baseline5mAgo.total_pnl)) * 100
-    return Math.round(percentageChange * 10) / 10
+    const rounded = Math.round(percentageChange * 10) / 10
+    console.debug(`[Leaderboard] ${agentId} 5m win rate: ${rounded}%`)
+    return rounded
   } catch (error) {
     console.warn(`Could not calculate 5m win rate for ${agentId}:`, error)
     return 0
