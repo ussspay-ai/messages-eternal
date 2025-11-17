@@ -474,7 +474,7 @@ export default function DashboardPage() {
                       }
                     }
                     
-                    const notionalValue = Math.abs((p.positionAmt || 0) * (p.markPrice || 0))
+                    const notionalValue = Math.abs(p.notional || (p.positionAmt || 0) * (p.markPrice || 0))
                     const transformed = {
                       side,
                       coin: (p.symbol || "").replace("USDT", ""),
@@ -588,6 +588,99 @@ export default function DashboardPage() {
 
     const chartRefreshInterval = setInterval(refreshChartData, 5 * 60 * 1000) // 5 minutes
 
+    // 🔄 Lightweight position refresh every 3 seconds for accurate notional values
+    const refreshPositions = async () => {
+      if (agents.length === 0) return
+
+      const positionsMap: Record<string, any[]> = {}
+      const trades: any[] = []
+
+      for (const agent of agents) {
+        try {
+          // Fetch positions only - lightweight operation
+          let posRes = await fetch(`/api/aster/positions?agentId=${agent.id}`)
+          let positions = []
+          
+          if (posRes.ok) {
+            positions = await posRes.json()
+          } else {
+            // Fallback to mock if API fails
+            const mockRes = await fetch(`/api/mock/positions?agentId=${agent.id}`)
+            if (mockRes.ok) {
+              positions = await mockRes.json()
+            }
+          }
+          
+          if (positions && positions.length > 0) {
+            try {
+              const exitPlansRes = await fetch(`/api/aster/exit-plans?agentId=${agent.id}`)
+              const exitPlans = exitPlansRes.ok ? await exitPlansRes.json() : []
+              
+              const exitPlanMap: Record<string, any> = {}
+              exitPlans.forEach((plan: any) => {
+                const key = `${plan.symbol}:${plan.side}`
+                exitPlanMap[key] = plan
+              })
+              
+              const filtered = positions.filter((p: any) => p.positionAmt !== 0)
+              
+              positionsMap[agent.id] = filtered
+                       .map((p: any) => {
+                  try {
+                    const side = p.positionAmt > 0 ? "LONG" : "SHORT"
+                    const planKey = `${p.symbol}:${side}`
+                    const exitPlan = exitPlanMap[planKey]
+                    
+                    let exitPlanDisplay = "VIEW"
+                    if (exitPlan) {
+                      const tp = exitPlan.take_profit || exitPlan.takeProfit || 0
+                      const sl = exitPlan.stop_loss || exitPlan.stopLoss || 0
+                      if (tp > 0 && sl > 0) {
+                        exitPlanDisplay = `TP: $${tp.toFixed(2)} / SL: $${sl.toFixed(2)}`
+                      } else if (tp > 0) {
+                        exitPlanDisplay = `TP: $${tp.toFixed(2)}`
+                      } else if (sl > 0) {
+                        exitPlanDisplay = `SL: $${sl.toFixed(2)}`
+                      }
+                    }
+                    
+                    const notionalValue = Math.abs(p.notional || (p.positionAmt || 0) * (p.markPrice || 0))
+                    const transformed = {
+                      side,
+                      coin: (p.symbol || "").replace("USDT", ""),
+                      leverage: `${p.leverage || 1}X`,
+                      notional: notionalValue,
+                      exitPlan: exitPlanDisplay,
+                      unrealizedPnl: p.unrealizedProfit || 0,
+                      // Include raw values for hover tooltips if needed
+                      _exitPlanData: exitPlan,
+                    }
+                    console.log(`  ├─ [Refresh] Transformed: ${p.symbol} ${side} ${p.positionAmt} @ ${p.markPrice} leverage=${p.leverage}X notional=${transformed.notional}`)
+                    return transformed
+                  } catch (e) {
+                    console.error(`Error transforming position for ${agent.id}:`, e)
+                    return null
+                  }
+                })
+                .filter((p: any) => p !== null)
+            } catch (e) {
+              console.error(`Error processing positions for ${agent.id}:`, e)
+              positionsMap[agent.id] = []
+            }
+          } else {
+            positionsMap[agent.id] = []
+          }
+        } catch (error) {
+          console.error(`Error refreshing positions for ${agent.id}:`, error)
+        }
+      }
+
+      setLivePositions(positionsMap)
+      console.log(`✅ [Dashboard] Positions refreshed at ${new Date().toLocaleTimeString()}`)
+    }
+
+    const positionsRefreshInterval = setInterval(refreshPositions, 3000) // 3 seconds for real-time accuracy
+
     const interval = setInterval(() => {
       fetchLiveData()
 
@@ -630,6 +723,7 @@ export default function DashboardPage() {
     return () => {
       clearInterval(interval)
       clearInterval(chartRefreshInterval)
+      clearInterval(positionsRefreshInterval)
     }
   }, [])
 
@@ -737,7 +831,7 @@ export default function DashboardPage() {
                       }
                     }
                     
-                    const notionalValue = Math.abs((p.positionAmt || 0) * (p.markPrice || 0))
+                    const notionalValue = Math.abs(p.notional || (p.positionAmt || 0) * (p.markPrice || 0))
                     return {
                       side,
                       coin: (p.symbol || "").replace("USDT", ""),
