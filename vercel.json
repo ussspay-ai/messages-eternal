@@ -22,6 +22,16 @@
       "permanent": false
     }
   ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "protectedRoutes": [
+    {
+      "path": "/((?!api/cron).)*"
+    }
+  ],
   "headers": [
     {
       "source": "/api/:path*",
