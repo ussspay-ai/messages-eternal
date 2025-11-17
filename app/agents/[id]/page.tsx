@@ -161,6 +161,7 @@ interface Agent {
   shortWinRate: number
   flatRate: number
   totalUnrealizedPnl: number
+  walletAddress?: string
 }
 
 interface Position {
@@ -192,6 +193,22 @@ interface Trade {
   netPnl: number
 }
 
+// Wallet address mapping for each agent
+const AGENT_WALLET_MAP: Record<string, string> = {
+  // Agent IDs or names can map to wallet addresses
+  claude_arbitrage: "0x9E9aF55F0D1a40c05762a94B6620A7929329B37c",
+  chatgpt_openai: "0x1983fF92113Fe00BC99e042Ad800e794275b34dB",
+  gemini_grid: "0x20Feb3F1b023f45967D71308F94D8a6F7Ca05004",
+  deepseek_ml: "0x01FE403480FCef403577c2B9a480D34b05c21747",
+  buy_and_hold: "0xe9cc6524c4d304AF4C6698164Fdc2B527983f634",
+  // Also map by model names in case agent.id doesn't match
+  claude: "0x9E9aF55F0D1a40c05762a94B6620A7929329B37c",
+  openai: "0x1983fF92113Fe00BC99e042Ad800e794275b34dB",
+  gemini: "0x20Feb3F1b023f45967D71308F94D8a6F7Ca05004",
+  deepseek: "0x01FE403480FCef403577c2B9a480D34b05c21747",
+  grok: "0xe9cc6524c4d304AF4C6698164Fdc2B527983f634",
+}
+
 export default function AgentDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -214,6 +231,9 @@ export default function AgentDetailPage() {
         setAllAgents(agents as Agent[])
         const found = agents.find((a: any) => a.id === params.id)
         if (found) {
+          // Get wallet address from mapping based on agent ID or model
+          const walletAddress = AGENT_WALLET_MAP[found.id] || AGENT_WALLET_MAP[found.model]
+          
           // Transform Aster agent data to Agent interface
           setAgent({
             id: found.id,
@@ -239,6 +259,7 @@ export default function AgentDetailPage() {
             shortWinRate: 0,
             flatRate: 0,
             totalUnrealizedPnl: 0,
+            walletAddress: walletAddress,
           } as Agent)
         }
       })
@@ -507,12 +528,23 @@ export default function AgentDetailPage() {
                 </div>
               </div>
             </div>
-            <Link
-              href="#"
-              className="text-xs font-mono text-blue-600 hover:underline border-2 border-blue-600 px-3 py-1"
-            >
-              VIEW WALLET
-            </Link>
+            {agent.walletAddress && agent.walletAddress !== "0x" ? (
+              <Link
+                href={`https://debank.com/profile/${agent.walletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-mono text-blue-600 hover:underline border-2 border-blue-600 px-3 py-1"
+              >
+                VIEW WALLET
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="text-xs font-mono text-gray-400 border-2 border-gray-400 px-3 py-1 opacity-50 cursor-not-allowed"
+              >
+                VIEW WALLET
+              </button>
+            )}
           </div>
         </div>
 
