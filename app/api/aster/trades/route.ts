@@ -147,8 +147,12 @@ export async function GET(request: NextRequest) {
     // Sort by time descending
     allTrades.sort((a, b) => b.time - a.time)
 
-    console.log(`[Trades API] ✅ Returning ${allTrades.slice(0, limit).length} trades (limited to ${limit})`)
-    return NextResponse.json(allTrades.slice(0, limit))
+    const result = allTrades.slice(0, limit)
+    console.log(`[Trades API] ✅ Returning ${result.length} trades (limited to ${limit})`)
+    if (result.length > 0) {
+      console.log(`[Trades API] Sample trade structure:`, JSON.stringify(result[0], null, 2))
+    }
+    return NextResponse.json(result)
   } catch (error) {
     console.error("[Trades API] Error fetching trades:", error)
     return NextResponse.json(

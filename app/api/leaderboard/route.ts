@@ -232,8 +232,26 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
           userApiSecret: credentials.userApiSecret,
         })
 
-        const tradesResponse = await client.getTrades()
-        console.log(`[Leaderboard] Got ${tradesResponse.trades.length} trades for ${agent.id}`)
+        // Get agent's configured trading symbols
+        const symbols = await getAgentTradingSymbols(agent.id)
+        console.log(`[Leaderboard] Fetching trades for ${agent.id} symbols: ${symbols.join(", ")}`)
+
+        // Fetch completed user trades for each symbol and aggregate
+        // Note: Using getUserTrades() instead of getTrades() to get proper realized PnL data
+        let allTrades: any[] = []
+        for (const symbol of symbols) {
+          try {
+            const symbolTradesResponse = await client.getUserTrades(symbol, 100)
+            allTrades = allTrades.concat(symbolTradesResponse.trades)
+            console.log(`[Leaderboard] Got ${symbolTradesResponse.trades.length} completed trades for ${agent.id}/${symbol}`)
+          } catch (symbolError) {
+            console.warn(`[Leaderboard] Warning: Could not fetch trades for ${symbol}:`, symbolError instanceof Error ? symbolError.message : symbolError)
+            // Continue with other symbols if one fails
+          }
+        }
+
+        const tradesResponse = { trades: allTrades }
+        console.log(`[Leaderboard] Got ${tradesResponse.trades.length} total completed trades for ${agent.id}`)
         
         let fees = 0
         let biggestWin = 0
@@ -273,7 +291,11 @@ async function getAgentsDataFromEndpoint(): Promise<LeaderboardAgent[]> {
         agent.medianLeverage = advancedMetrics.medianLeverage
         agent.avgConfidence = advancedMetrics.avgConfidence
         agent.medianConfidence = advancedMetrics.medianConfidence
-        console.log(`[Leaderboard] ✅ ${agent.id}: WR=${agent.winRate}%, Fees=$${agent.fees}, Trades=${agent.trades}`)
+        
+        // Calculate 5-minute win rate from database
+        agent.winRatePercent5m = await calculate5MinuteWinRate(agent.id, agent.totalPnL)
+        
+        console.log(`[Leaderboard] ✅ ${agent.id}: WR=${agent.winRate}%, 5m=${agent.winRatePercent5m}%, Fees=$${agent.fees}, Trades=${agent.trades}`)
       } catch (error) {
         console.error(`❌ [Leaderboard] Error fetching trades for ${agent.id}:`, error instanceof Error ? error.message : error)
       }

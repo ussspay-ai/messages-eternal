@@ -473,6 +473,103 @@ export class AsterClient {
   }
 
   /**
+   * Get account's historical trades using /fapi/v1/userTrades endpoint
+   * This returns the wallet's completed trades (not market trades)
+   * Better for historical trade data on detail pages
+   */
+  async getUserTrades(symbol?: string, limit: number = 100): Promise<AsterTradesResponse> {
+    try {
+      const params: Record<string, any> = { limit }
+      if (symbol) {
+        params.symbol = symbol
+      }
+
+      console.log(`[AsterClient] Fetching user trades from /fapi/v1/userTrades with params:`, params)
+      const rawTrades = await this.request<any[]>("GET", "/fapi/v1/userTrades", params)
+      
+      // Debug: Log first trade structure to see what fields are available
+      if (rawTrades.length > 0) {
+        console.log(`[AsterClient] Sample user trade from API (first of ${rawTrades.length}):`, JSON.stringify(rawTrades[0], null, 2))
+      } else {
+        console.log(`[AsterClient] No user trades found`)
+      }
+
+      // Enrich trades with calculated commissions
+      const trades: AsterTrade[] = rawTrades.map((rawTrade, index) => {
+        const { commission, maker } = this.calculateTradeCommission(rawTrade)
+        
+        // Debug first trade to verify fee calculation
+        if (index === 0 && rawTrades.length > 0) {
+          const price = parseFloat(rawTrade.price || 0)
+          const qty = parseFloat(rawTrade.qty || 0)
+          const tradeAmount = price * qty
+          
+          console.log(`[AsterClient] First user trade fee calculation:`, {
+            price: rawTrade.price,
+            qty: rawTrade.qty,
+            tradeAmount: tradeAmount.toFixed(6),
+            isMaker: maker,
+            feeRate: maker ? "0.01%" : "0.035%",
+            calculatedCommission: commission,
+            note: "Commission always calculated locally - Aster API commission field is unreliable",
+          })
+        }
+        
+        return {
+          symbol: rawTrade.symbol || "",
+          id: rawTrade.id?.toString() || "",
+          orderId: rawTrade.orderId?.toString() || "",
+          side: rawTrade.side || "BUY",
+          price: parseFloat(rawTrade.price || 0),
+          qty: parseFloat(rawTrade.qty || 0),
+          realizedPnl: parseFloat(rawTrade.realizedPnl || 0),
+          marginAsset: rawTrade.marginAsset || COMMISSION_ASSET,
+          quoteQty: parseFloat(rawTrade.quoteQty || 0),
+          commission, // Calculated or API-provided commission
+          commissionAsset: COMMISSION_ASSET,
+          time: rawTrade.time || 0,
+          positionSide: rawTrade.positionSide || "BOTH",
+          buyer: rawTrade.buyer || false,
+          maker, // Calculated from isBuyerMaker flag
+        }
+      })
+
+      // Calculate win rate and PnL summary
+      let winCount = 0
+      let totalTrades = trades.length
+      let netPnl = 0
+      let totalFees = 0
+
+      for (const trade of trades) {
+        if (trade.realizedPnl > 0) winCount++
+        netPnl += trade.realizedPnl
+        totalFees += trade.commission
+      }
+
+      const winRate = totalTrades > 0 ? winCount / totalTrades : 0
+
+      console.log(`[AsterClient] User trades enriched:`, {
+        totalTrades,
+        totalFees: Math.round(totalFees * 100) / 100,
+        avgFeePerTrade: totalTrades > 0 ? Math.round((totalFees / totalTrades) * 1000000) / 1000000 : 0,
+        source: "/fapi/v1/userTrades (wallet historical trades)",
+      })
+
+      return {
+        trades,
+        summary: {
+          win_rate: winRate,
+          total_trades: totalTrades,
+          net_pnl: netPnl,
+        },
+      }
+    } catch (error) {
+      console.error("[AsterClient] Error fetching user trades:", error)
+      throw error
+    }
+  }
+
+  /**
    * Get all orders for a symbol
    */
   async getAllOrders(symbol: string, limit: number = 500): Promise<AsterOrder[]> {

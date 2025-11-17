@@ -31,6 +31,16 @@ function formatHoldingTime(milliseconds: number): string {
  * Aster API returns individual BUY/SELL fills, we need to pair them into complete trades
  */
 function reconstructCompleteTrades(asterFills: any[]): any[] {
+  console.log(`[reconstructCompleteTrades] 🔍 Starting reconstruction with ${asterFills.length} fills`)
+  
+  if (asterFills.length === 0) {
+    console.log(`[reconstructCompleteTrades] No fills to process`)
+    return []
+  }
+  
+  // Log first fill structure to understand data format
+  console.log(`[reconstructCompleteTrades] Sample fill:`, asterFills[0])
+  
   // Sort by time to process chronologically
   const sortedFills = [...asterFills].sort((a, b) => a.time - b.time)
   
@@ -43,11 +53,15 @@ function reconstructCompleteTrades(asterFills: any[]): any[] {
     fillsBySymbol[fill.symbol].push(fill)
   })
   
+  console.log(`[reconstructCompleteTrades] 📍 Grouped fills by symbol:`, Object.keys(fillsBySymbol).map(sym => `${sym}(${fillsBySymbol[sym].length})`).join(', '))
+  
   const completeTrades: any[] = []
   const usedIndices = new Set<number>()
   
   // For each symbol, reconstruct trades by pairing entry/exit fills
   Object.entries(fillsBySymbol).forEach(([symbol, fills]) => {
+    console.log(`[reconstructCompleteTrades] Processing ${symbol}: ${fills.length} fills`)
+    
     let i = 0
     while (i < fills.length) {
       // Skip already paired fills
@@ -63,6 +77,8 @@ function reconstructCompleteTrades(asterFills: any[]): any[] {
       const isShortEntry = entryFill.positionSide === "SHORT" && entryFill.side === "SELL"
       const isEntry = isLongEntry || isShortEntry
       
+      console.log(`[reconstructCompleteTrades] Fill ${i}: side=${entryFill.side}, positionSide=${entryFill.positionSide}, isEntry=${isEntry}`)
+      
       // If this is an entry, look for matching exit
       if (isEntry) {
         let exitFill = null
@@ -77,6 +93,7 @@ function reconstructCompleteTrades(asterFills: any[]): any[] {
           if (isLongExit || isShortExit) {
             exitFill = potentialExit
             exitIndex = j
+            console.log(`[reconstructCompleteTrades] ✅ Found matching exit at index ${j}`)
             break
           }
         }
@@ -105,12 +122,16 @@ function reconstructCompleteTrades(asterFills: any[]): any[] {
           
           usedIndices.add(i)
           usedIndices.add(exitIndex)
+        } else {
+          console.log(`[reconstructCompleteTrades] ⚠️ No matching exit found for entry at index ${i}`)
         }
       }
       
       i++
     }
   })
+  
+  console.log(`[reconstructCompleteTrades] 🏁 Final result: ${completeTrades.length} complete trades reconstructed`)
   
   // Sort trades by exit time descending (most recent first)
   return completeTrades.sort((a, b) => b.exitTime - a.exitTime)
@@ -250,35 +271,55 @@ export default function AgentDetailPage() {
           setPositions(positions)
         })
         .catch((err) => {
-          console.debug("Failed to fetch positions:", err)
+          console.error("[Agent Detail] ❌ Failed to fetch positions:", err)
           // Keep existing mock positions if API fails
         })
 
-      // Fetch live trades for the agent
-      // Reconstruct complete round-trip trades from individual fills
-      fetch(`/api/aster/trades?agentId=${params.id}&limit=100`)
+      // Fetch historical trades for the agent (last 25)
+      // Uses /fapi/v1/userTrades endpoint to get wallet's historical trades
+      fetch(`/api/aster/historical-trades?agentId=${params.id}&limit=25`)
         .then((res) => res.json())
-        .then((asterFills) => {
-          // Reconstruct complete trades from fills and limit to 25 most recent
-          const completeTrades = reconstructCompleteTrades(asterFills)
-          const trades: Trade[] = completeTrades.slice(0, 25).map((t: any) => ({
+        .then((historicalTrades) => {
+          console.log(`[Agent Detail] 📊 Received ${Array.isArray(historicalTrades) ? historicalTrades.length : 0} historical trades from API`)
+          
+          if (!Array.isArray(historicalTrades)) {
+            console.warn(`[Agent Detail] ⚠️ Expected array of trades, got:`, typeof historicalTrades)
+            setTrades([])
+            return
+          }
+          
+          if (historicalTrades.length === 0) {
+            console.log(`[Agent Detail] No historical trades returned from API for agent ${params.id}`)
+            setTrades([])
+            return
+          }
+          
+          console.log(`[Agent Detail] ✅ Received ${historicalTrades.length} historical trades from /fapi/v1/userTrades`)
+          
+          if (historicalTrades.length > 0) {
+            console.log(`[Agent Detail] Sample historical trade:`, historicalTrades[0])
+          }
+          
+          // Transform historical trades to Trade interface
+          const trades: Trade[] = historicalTrades.map((t: any) => ({
             id: t.id,
-            side: t.side,
-            coin: t.coin,
-            entryPrice: t.entryPrice,
-            exitPrice: t.exitPrice,
-            quantity: t.quantity,
-            holdingTime: t.holdingTime,
-            notionalEntry: t.notionalEntry,
-            notionalExit: t.notionalExit,
-            totalFees: t.totalFees,
-            netPnl: t.netPnl,
+            side: t.side === "BUY" ? (t.positionSide === "LONG" ? "LONG" : "SHORT") : (t.positionSide === "SHORT" ? "SHORT" : "LONG"),
+            coin: t.symbol.replace("USDT", ""),
+            entryPrice: t.price,
+            exitPrice: t.price,
+            quantity: t.qty,
+            holdingTime: "-",
+            notionalEntry: t.price * t.qty,
+            notionalExit: t.price * t.qty,
+            totalFees: t.commission || 0,
+            netPnl: t.realizedPnl || 0,
           }))
           setTrades(trades)
-          console.log(`[Agent Detail] Reconstructed ${completeTrades.length} trades from fills, displaying 25 most recent`)
+          console.log(`[Agent Detail] 🎯 Displaying ${trades.length} historical trades in UI`)
         })
         .catch((err) => {
-          console.debug("Failed to fetch trades:", err)
+          console.error("[Agent Detail] ❌ Failed to fetch historical trades:", err)
+          setTrades([])
           // Keep existing mock trades if API fails
         })
 
@@ -482,10 +523,7 @@ export default function AgentDetailPage() {
               ${agent.pnl.toLocaleString()}
             </div>
           </div>
-          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
-            <div className="text-xs font-mono mb-1">Total Fees:</div>
-            <div className="text-xs font-bold font-mono">${agent.totalFees.toLocaleString()}</div>
-          </div>
+
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
             <div className="text-xs font-mono mb-1">Net Realized:</div>
             <div
@@ -496,51 +534,10 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-6">
-          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
-            <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-              <div>
-                <span className="text-gray-600">Average Leverage:</span>{" "}
-                <span className="font-bold">{agent.avgLeverage}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Biggest Win:</span>{" "}
-                <span className="font-bold text-green-600">${agent.biggestWin}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Average Confidence:</span>{" "}
-                <span className="font-bold">{agent.avgConfidence}%</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Biggest Loss:</span>{" "}
-                <span className="font-bold text-red-600">${agent.biggestLoss}</span>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
-            <div className="text-xs font-mono font-bold mb-3 text-center">WIN/LOSS TIMES</div>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between">
-                <span>Long:</span>
-                <span className="font-bold">{agent.longWinRate}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Short:</span>
-                <span className="font-bold">{agent.shortWinRate}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Flat:</span>
-                <span className="font-bold">{agent.flatRate}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold font-mono">ACTIVE POSITIONS</h2>
             <div className="text-xs font-mono">
-              Total Unrealized P&L: <span className="font-bold">${agent.totalUnrealizedPnl}</span>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -603,46 +600,6 @@ export default function AgentDetailPage() {
                 </div>
               </div>
             )))}
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <h2 className="text-center text-xs font-mono font-bold mb-4">TOTAL ACCOUNT VALUE</h2>
-          <div className="h-48 md:h-64 lg:h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={agent.color} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={agent.color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" stroke="#666" style={{ fontSize: "10px", fontFamily: "Space Mono" }} />
-                <YAxis
-                  stroke="#666"
-                  style={{ fontSize: "10px", fontFamily: "Space Mono" }}
-                  tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: "2px solid black",
-                    borderRadius: "0",
-                    fontSize: "10px",
-                    fontFamily: "Space Mono",
-                  }}
-                  formatter={(value: any) => [`$${value.toFixed(2)}`, "Account Value"]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={agent.color}
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorValue)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
           </div>
         </div>
 
@@ -738,11 +695,9 @@ export default function AgentDetailPage() {
                     <th className="text-left py-2 px-2">SIDE</th>
                     <th className="text-left py-2 px-2">COIN</th>
                     <th className="text-left py-2 px-2">ENTRY PRICE</th>
-                    <th className="text-left py-2 px-2">EXIT PRICE</th>
                     <th className="text-left py-2 px-2">QUANTITY</th>
                     <th className="text-left py-2 px-2">HOLDING TIME</th>
                     <th className="text-left py-2 px-2">NOTIONAL ENTRY</th>
-                    <th className="text-left py-2 px-2">NOTIONAL EXIT</th>
                     <th className="text-left py-2 px-2">TOTAL FEES</th>
                     <th className="text-left py-2 px-2">NET P&L</th>
                   </tr>
@@ -768,11 +723,9 @@ export default function AgentDetailPage() {
                       </span>
                     </td>
                     <td className="py-2 px-2">${(trade.entryPrice ?? 0).toLocaleString()}</td>
-                    <td className="py-2 px-2">${(trade.exitPrice ?? 0).toLocaleString()}</td>
                     <td className="py-2 px-2">{trade.quantity ?? 0}</td>
                     <td className="py-2 px-2">{trade.holdingTime ?? "-"}</td>
                     <td className="py-2 px-2">${trade.notionalEntry?.toLocaleString() || "0"}</td>
-                    <td className="py-2 px-2">${trade.notionalExit?.toLocaleString() || "0"}</td>
                     <td className="py-2 px-2">${(trade.totalFees ?? 0).toFixed(2)}</td>
                     <td className={`py-2 px-2 font-bold ${(trade.netPnl ?? 0) < 0 ? "text-red-600" : "text-green-600"}`}>
                       ${(trade.netPnl ?? 0).toFixed(2)}
