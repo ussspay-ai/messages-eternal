@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
         content: msg.content,
         confidence: msg.confidence || 0.5,
         timestamp: msg.timestamp,
+        symbol: msg.symbol, // Include trading symbol context
       })
     }
 

@@ -13,6 +13,7 @@ CREATE TABLE agent_chat_messages (
   content TEXT NOT NULL,
   confidence NUMERIC(5, 2),
   timestamp TEXT NOT NULL,
+  symbol TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -28,6 +29,12 @@ CREATE INDEX idx_agent_chat_agent_timestamp
 
 CREATE INDEX idx_agent_chat_created_at 
   ON agent_chat_messages(created_at DESC);
+
+CREATE INDEX idx_agent_chat_symbol 
+  ON agent_chat_messages(symbol);
+
+CREATE INDEX idx_agent_chat_agent_symbol 
+  ON agent_chat_messages(agent_id, symbol);
 
 -- Enable Row Level Security
 ALTER TABLE agent_chat_messages ENABLE ROW LEVEL SECURITY;

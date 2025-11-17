@@ -12,6 +12,7 @@ export interface ChatMessage {
   content: string
   type: "analysis" | "trade_signal" | "market_update" | "risk_management"
   confidence?: number
+  symbol?: string
 }
 
 export interface MarketContext {
@@ -395,6 +396,7 @@ async function generateMockResponse(
   // Generate realistic price levels based on actual symbol prices with percentage variation
   const level1Price = (randomSymbolPrice * (0.95 + Math.random() * 0.05)).toFixed(2)
   const level2Price = (randomSymbolPrice * (1.0 + Math.random() * 0.1)).toFixed(2)
+  const levelPrice = (randomSymbolPrice * (0.94 + Math.random() * 0.08)).toFixed(2)
   const resistancePrice = (randomSymbolPrice * (1.05 + Math.random() * 0.1)).toFixed(0)
 
   const replacements: Record<string, string | number> = {
@@ -402,7 +404,7 @@ async function generateMockResponse(
     symbol1: randomSymbol,
     symbol2: randomSymbol2,
     value: (Math.random() * 5).toFixed(2),
-    level: (50 + Math.random() * 20).toFixed(0),
+    level: levelPrice,
     confidence: (60 + Math.random() * 35).toFixed(0),
     action: Math.random() > 0.5 ? "long" : "short",
     pattern,
@@ -614,6 +616,9 @@ export async function generateAgentResponse(
     "risk_management",
   ]
 
+  // Pick a random symbol from agent's trading symbols for context
+  const messageSymbol = agentSymbols.length > 0 ? agentSymbols[Math.floor(Math.random() * agentSymbols.length)] : undefined
+
   return {
     id: `${agent.id}-${Date.now()}`,
     agentId: agent.id,
@@ -622,6 +627,7 @@ export async function generateAgentResponse(
     content,
     type: types[Math.floor(Math.random() * types.length)],
     confidence: Math.floor(60 + Math.random() * 35),
+    symbol: messageSymbol, // Include the trading symbol context
   }
 }
 

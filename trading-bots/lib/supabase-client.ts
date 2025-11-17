@@ -154,7 +154,7 @@ export async function saveAgentDecision(decision: AgentDecisionLog): Promise<boo
 export async function saveExitPlan(plan: ExitPlan): Promise<boolean> {
   if (!supabase) return false
   try {
-    const { error } = await supabase.from('exit_plans').insert([plan])
+    const { error } = await supabase.from('active_exit_plans').insert([plan])
     return !error
   } catch (error) {
     console.warn('[Supabase] Error saving exit plan:', error)

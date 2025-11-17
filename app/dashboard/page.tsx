@@ -921,6 +921,7 @@ export default function DashboardPage() {
             content: msg.content,
             type: msg.message_type || msg.type,
             confidence: msg.confidence,
+            symbol: msg.symbol, // Include symbol from database
           }))
 
           // Organize messages by agent
