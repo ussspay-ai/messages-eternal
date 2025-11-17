@@ -200,14 +200,14 @@ export function ModelChatView({
             <div className="grid grid-cols-3 gap-2 text-[8px]">
               <div className="bg-black/20 rounded px-2 py-1">
                 <span className="text-muted-foreground">Account</span>
-                <p className={`font-mono font-bold ${selectedContext.totalUnrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ${selectedContext.accountValue.toFixed(2)}
+                <p className={`font-mono font-bold ${(selectedContext.totalUnrealizedPnL ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ${(selectedContext.accountValue ?? 0).toFixed(2)}
                 </p>
               </div>
               <div className="bg-black/20 rounded px-2 py-1">
                 <span className="text-muted-foreground">U/R PnL</span>
-                <p className={`font-mono font-bold ${selectedContext.totalUnrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {selectedContext.totalUnrealizedPnL >= 0 ? '+' : ''}{selectedContext.totalUnrealizedPnL.toFixed(2)}
+                <p className={`font-mono font-bold ${(selectedContext.totalUnrealizedPnL ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {(selectedContext.totalUnrealizedPnL ?? 0) >= 0 ? '+' : ''}{(selectedContext.totalUnrealizedPnL ?? 0).toFixed(2)}
                 </p>
               </div>
               <div className="bg-black/20 rounded px-2 py-1">
@@ -225,11 +225,11 @@ export function ModelChatView({
                     className="flex-shrink-0 px-2 py-1 rounded border border-white/10 bg-white/5 text-[8px] font-mono"
                   >
                     <p className="font-bold text-white">{symbol.symbol}</p>
-                    <p className={symbol.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      {symbol.unrealizedPnL >= 0 ? '+' : ''}{symbol.unrealizedPnL.toFixed(2)}
+                    <p className={(symbol.unrealizedPnL ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}>
+                      {(symbol.unrealizedPnL ?? 0) >= 0 ? '+' : ''}{(symbol.unrealizedPnL ?? 0).toFixed(2)}
                     </p>
                     <p className="text-muted-foreground text-[7px]">
-                      ${symbol.currentPrice.toFixed(2)}
+                      ${(symbol.currentPrice ?? 0).toFixed(2)}
                     </p>
                   </div>
                 ))}
