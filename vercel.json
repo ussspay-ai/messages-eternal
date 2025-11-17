@@ -27,11 +27,6 @@
       "main": true
     }
   },
-  "protectedRoutes": [
-    {
-      "path": "/((?!api/cron).)*"
-    }
-  ],
   "headers": [
     {
       "source": "/api/:path*",
