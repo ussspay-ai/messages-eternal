@@ -76,14 +76,14 @@ const AGENT_PROFILES: Record<
     ],
   },
   gemini_grid: {
-    name: "Gemini Grid",
+    name: "Gemini",
     model: "Google Gemini Pro",
     personality: "Systematic, accumulation-focused, strategic entry planning",
     tradingStyle: "Dollar-cost averaging with systematic accumulation on dips",
     responsePatterns: [
       "Accumulating {symbol} at ${level1}. Current price ${level2}. Adding {count} positions on this dip.",
       "Accumulation status: {filled}% of target accumulated, average cost basis improving. Unrealized profit: {profit}.",
-      "DCA strategy executing: {symbol} dipped to {level}. Deploying accumulation orders. Entry confidence: {confidence}%.",
+      "DCA strategy executing: {symbol} dipped to level {level}. Deploying accumulation orders. Entry confidence: {confidence}%.",
       "Accumulation window: {symbol} showing {direction} momentum after consolidation. Building positions with {confidence}% conviction.",
     ],
   },
@@ -116,10 +116,17 @@ const AGENT_PROFILES: Record<
 /**
  * Fetch agent's configured trading symbols from Pickaboo dashboard
  * Falls back to default symbols from constants if not configured
+ * Environment-aware: works in localhost, Vercel, and any deployment
+ * Environment-aware: works in localhost, Vercel, and any deployment
  */
 async function getAgentTradingSymbols(agentId: string): Promise<string[]> {
   try {
-    const response = await fetch(`http://localhost:3000/api/pickaboo/agent-trading-symbols?agent_id=${agentId}`)
+    // Determine base URL based on environment
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`)
+      : ''
+    
+    const response = await fetch(`${baseUrl}/api/pickaboo/agent-trading-symbols?agent_id=${agentId}`)
     
     if (!response.ok) {
       throw new Error(`Failed to fetch symbols: ${response.status}`)
@@ -227,10 +234,16 @@ async function generateSyntheticPositions(
 
 /**
  * Fetch REAL market prices from API (not mocked)
+ * Environment-aware: works in localhost, Vercel, and any deployment
  */
 async function getRealMarketContext(): Promise<MarketContext> {
   try {
-    const response = await fetch("http://localhost:3000/api/market/prices")
+    // Determine base URL based on environment
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`)
+      : ''
+    
+    const response = await fetch(`${baseUrl}/api/market/prices`)
     const data = await response.json()
     
     if (data && data.BTC && data.ETH) {
@@ -294,13 +307,35 @@ export interface AgentPositionContext {
 
 async function getAgentPositionContext(agentId: string): Promise<AgentPositionContext> {
   try {
-    // Fetch positions from API
-    const posResponse = await fetch(`http://localhost:3000/api/aster/positions?agentId=${agentId}`)
+    // Determine base URL based on environment
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`)
+      : ''
+    
+    // Fetch REAL positions from Aster API
+    const posResponse = await fetch(`${baseUrl}/api/aster/positions?agentId=${agentId}`)
     if (!posResponse.ok) {
-      throw new Error(`Position fetch failed: ${posResponse.status}`)
+      const errorText = await posResponse.text()
+      console.error(`[Chat Engine] ❌ Position API error (${posResponse.status}): ${errorText}`)
+      throw new Error(`Position API returned ${posResponse.status}: ${errorText}`)
     }
     
     const positions = await posResponse.json()
+    console.log(`[Chat Engine] ✅ Fetched ${positions.length} positions from Aster API for ${agentId}`)
+    
+    // Handle empty positions - return empty context (NOT synthetic)
+    if (!positions || positions.length === 0) {
+      console.log(`[Chat Engine] 📭 Agent ${agentId} has no open positions`)
+      return {
+        holdings: [],
+        totalUnrealizedPnL: 0,
+        holdingCount: 0,
+        gainers: [],
+        losers: [],
+        bestPerformer: null,
+        worstPerformer: null,
+      }
+    }
     
     // Fetch current prices
     const priceContext = await getRealMarketContext()
@@ -318,7 +353,7 @@ async function getAgentPositionContext(agentId: string): Promise<AgentPositionCo
     const gainers: string[] = []
     const losers: string[] = []
 
-    // Process each position
+    // Process each REAL position
     for (const pos of positions) {
       if (!pos.symbol || pos.positionAmt === 0) continue
 
@@ -328,7 +363,7 @@ async function getAgentPositionContext(agentId: string): Promise<AgentPositionCo
 
       if (currentPrice <= 0) continue
 
-      // Calculate PnL
+      // Calculate PnL from REAL position data
       const entryPrice = parseFloat(pos.entryPrice) || 0
       const quantity = parseFloat(pos.positionAmt) || 0
       const unrealizedPnL = (currentPrice - entryPrice) * quantity
@@ -363,7 +398,7 @@ async function getAgentPositionContext(agentId: string): Promise<AgentPositionCo
       worstPerformer = sorted[sorted.length - 1]?.symbol || null
     }
 
-    console.log(`[Chat Engine] 💼 Fetched position context for ${agentId}: ${holdings.length} holdings, $${totalUnrealizedPnL.toFixed(2)} total PnL`)
+    console.log(`[Chat Engine] 💼 Real position context for ${agentId}: ${holdings.length} holdings, $${totalUnrealizedPnL.toFixed(2)} total PnL`)
 
     return {
       holdings,
@@ -375,25 +410,19 @@ async function getAgentPositionContext(agentId: string): Promise<AgentPositionCo
       worstPerformer,
     }
   } catch (error) {
-    console.warn(`[Chat Engine] ⚠️ Could not fetch real positions for ${agentId}:`, error instanceof Error ? error.message : error)
-    console.log(`[Chat Engine] 🔄 Generating synthetic positions as fallback for ${agentId}...`)
+    console.error(`[Chat Engine] ❌ CRITICAL: Failed to fetch REAL positions for ${agentId}:`, error instanceof Error ? error.message : error)
+    console.error(`[Chat Engine] Stack:`, error instanceof Error ? error.stack : "N/A")
     
-    // Generate realistic synthetic positions instead of returning empty
-    try {
-      const agentSymbols = await getAgentTradingSymbols(agentId)
-      const marketContext = await getRealMarketContext()
-      return await generateSyntheticPositions(agentId, agentSymbols, marketContext)
-    } catch (synthError) {
-      console.error(`[Chat Engine] ❌ Failed to generate synthetic positions:`, synthError instanceof Error ? synthError.message : synthError)
-      return {
-        holdings: [],
-        totalUnrealizedPnL: 0,
-        holdingCount: 0,
-        gainers: [],
-        losers: [],
-        bestPerformer: null,
-        worstPerformer: null,
-      }
+    // DON'T fall back to synthetic data - this is a real error that needs to be fixed
+    // Return empty context so users know positions couldn't be fetched
+    return {
+      holdings: [],
+      totalUnrealizedPnL: 0,
+      holdingCount: 0,
+      gainers: [],
+      losers: [],
+      bestPerformer: null,
+      worstPerformer: null,
     }
   }
 }
@@ -412,8 +441,20 @@ async function getSymbolPrices(symbols: string[]): Promise<Record<string, number
     const symbolsParam = symbols.join(',')
     console.log(`[Chat Engine] 📊 Fetching prices for: ${symbolsParam}`)
     
-    const response = await fetch(`http://localhost:3000/api/market/prices?symbols=${symbolsParam}`)
+    // Use relative path for better environment compatibility
+    const baseUrl = typeof window === 'undefined' 
+      ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`)
+      : ''
+    
+    const response = await fetch(`${baseUrl}/api/market/prices?symbols=${symbolsParam}`)
+    
+    if (!response.ok) {
+      console.error(`[Chat Engine] ❌ Prices API error: ${response.status} ${response.statusText}`)
+      return {}
+    }
+    
     const data = await response.json()
+    console.log(`[Chat Engine] 📦 Prices API response:`, { source: data.source, symbols: Object.keys(data).filter(k => k !== 'timestamp' && k !== 'source') })
     
     const priceMap: Record<string, number> = {}
     
@@ -422,16 +463,23 @@ async function getSymbolPrices(symbols: string[]): Promise<Record<string, number
       const price = data[symbol]
       if (typeof price === 'number' && price > 0) {
         priceMap[symbol] = price
-        console.log(`[Chat Engine] ✅ ${symbol}: $${price.toFixed(2)}`)
+        console.log(`[Chat Engine] ✅ ${symbol}: $${price.toFixed(2)} (from ${data.source})`)
       } else {
-        console.warn(`[Chat Engine] ⚠️ ${symbol}: No price found, using default`)
-        priceMap[symbol] = 100 // Default fallback
+        console.warn(`[Chat Engine] ⚠️ ${symbol}: No price found in API response`)
+        // Use a more realistic default based on symbol if we have none
+        const defaults: Record<string, number> = {
+          'BTC': 42500, 'ETH': 2250, 'SOL': 145, 'BNB': 615, 'DOGE': 0.35,
+          'ASTER': 1.25, 'SAND': 0.45, 'FLOKI': 0.12, 'XRP': 2.5, 'ADA': 1.2,
+          'POLR': 0.8, 'SUI': 3.85, 'AAVE': 250
+        }
+        priceMap[symbol] = defaults[symbol] || 100
       }
     })
     
     return priceMap
   } catch (error) {
-    console.warn("[Chat Engine] ❌ Could not fetch symbol prices:", error instanceof Error ? error.message : error)
+    console.error("[Chat Engine] ❌ Could not fetch symbol prices:", error instanceof Error ? error.message : error)
+    console.error("[Chat Engine] Error details:", error)
     // Return empty map and let caller handle defaults
     return {}
   }
@@ -538,6 +586,7 @@ function extractBaseSymbol(symbol: string): string {
 
 /**
  * Fetch agent's active exit plans for context enrichment
+ * Environment-aware: works in localhost, Vercel, and any deployment
  */
 async function getAgentExitPlanContext(agentId: string): Promise<{
   activePlans: number
@@ -545,7 +594,12 @@ async function getAgentExitPlanContext(agentId: string): Promise<{
   exitPlansSummary: string
 }> {
   try {
-    const response = await fetch(`http://localhost:3000/api/aster/exit-plans?agentId=${agentId}`)
+    // Determine base URL based on environment
+    const baseUrl = typeof window === 'undefined'
+      ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:3000`)
+      : ''
+    
+    const response = await fetch(`${baseUrl}/api/aster/exit-plans?agentId=${agentId}`)
     if (!response.ok) {
       throw new Error(`Exit plans fetch failed: ${response.status}`)
     }
