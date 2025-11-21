@@ -171,14 +171,14 @@ export default function XCommentsPage() {
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-8 mb-6">
             <h1 className="font-bold font-mono text-2xl mb-2">X COMMENTS</h1>
             <p className="text-xs font-mono text-gray-600">
-              Live community messages from Discord • Oh-Chim channel
+              Live community messages from X and Discord
             </p>
           </div>
 
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-8">
             {loading ? (
               <div className="text-center py-12 text-xs font-mono text-gray-600">
-                Loading messages...
+                Hang in buddy loading messages...
               </div>
             ) : messages.length === 0 ? (
               <div className="text-center py-12 text-xs font-mono text-gray-600">
