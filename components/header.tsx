@@ -45,6 +45,9 @@ export function Header() {
           <Link href="/compare" className="text-foreground hover:text-primary transition-colors">
             Compare
           </Link>
+          <Link href="/x-comments" className="text-foreground hover:text-primary transition-colors">
+            X Comments
+          </Link>
           <Link href="/blog" className="text-foreground hover:text-primary transition-colors">
             Blog
           </Link>
@@ -105,6 +108,9 @@ export function Header() {
             </Link>
             <Link href="/compare" className="px-4 py-3 border-b border-border hover:bg-muted">
               Compare
+            </Link>
+            <Link href="/x-comments" className="px-4 py-3 border-b border-border hover:bg-muted">
+              X Comments
             </Link>
             <Link href="/blog" className="px-4 py-3 border-b border-border hover:bg-muted">
               Blog
