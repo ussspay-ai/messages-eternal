@@ -46,6 +46,11 @@ export default function XCommentsPage() {
   const animationIdRef = useRef<number | null>(null)
   const [messages, setMessages] = useState<DiscordMessage[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [newestMessageId, setNewestMessageId] = useState<string>("")
+  const [oldestMessageId, setOldestMessageId] = useState<string>("")
+  const [hasMore, setHasMore] = useState(true)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -112,21 +117,78 @@ export default function XCommentsPage() {
     }
   }, [])
 
-  useEffect(() => {
+  const fetchMessages = (afterId?: string) => {
     const discordApiUrl = process.env.NEXT_PUBLIC_DISCORD_API_URL || "/api/discord/messages"
-    const endpoint = `${discordApiUrl}?limit=50`
+    let endpoint = `${discordApiUrl}?limit=20`
+    
+    if (afterId) {
+      endpoint += `&after=${afterId}`
+    }
 
-    fetch(endpoint)
+    return fetch(endpoint)
       .then((res) => res.json())
       .then((data) => {
-        setMessages(data.messages || [])
-        setLoading(false)
+        if (afterId) {
+          setMessages((prev) => [...prev, ...(data.messages || [])])
+          setLoadingMore(false)
+        } else {
+          setMessages(data.messages || [])
+          setLoading(false)
+        }
+
+        if (data.messages && data.messages.length > 0) {
+          if (!afterId) {
+            setNewestMessageId(data.messages[0].id)
+          }
+          setOldestMessageId(data.pagination?.oldestMessageId || "")
+          setHasMore(data.pagination?.hasMore || false)
+        }
       })
       .catch((err) => {
         console.error("Failed to fetch Discord messages:", err)
         setLoading(false)
+        setLoadingMore(false)
       })
-  }, [])
+  }
+
+  const fetchNewMessages = () => {
+    if (!newestMessageId) return
+
+    const discordApiUrl = process.env.NEXT_PUBLIC_DISCORD_API_URL || "/api/discord/messages"
+    const endpoint = `${discordApiUrl}?limit=20`
+
+    fetch(endpoint)
+      .then((res) => res.json())
+      .then((data) => {
+        const newMessages = data.messages || []
+        if (newMessages.length > 0 && newMessages[0].id !== newestMessageId) {
+          setMessages((prev) => [...newMessages, ...prev])
+          setNewestMessageId(newMessages[0].id)
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch new Discord messages:", err)
+      })
+  }
+
+  useEffect(() => {
+    fetchMessages()
+
+    pollIntervalRef.current = setInterval(() => {
+      fetchNewMessages()
+    }, 10000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [newestMessageId])
+
+  const handleLoadMore = () => {
+    setLoadingMore(true)
+    fetchMessages(oldestMessageId)
+  }
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -186,6 +248,11 @@ export default function XCommentsPage() {
               </div>
             ) : (
               <div className="space-y-4">
+                {messages.length > 0 && (
+                  <div className="text-center text-xs font-mono text-gray-500 mb-4">
+                    ✓ Auto-refreshing every 10 seconds
+                  </div>
+                )}
                 {messages.map((message) => (
                   <a
                     key={message.id}
@@ -302,6 +369,17 @@ export default function XCommentsPage() {
                     </div>
                   </a>
                 ))}
+                {hasMore && (
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="px-6 py-2 bg-white border-2 border-black text-xs font-mono hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loadingMore ? "Loading..." : "Load More Messages"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

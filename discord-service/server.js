@@ -17,6 +17,7 @@ app.get("/api/discord/messages", async (req, res) => {
     const channelId = process.env.DISCORD_CHANNEL_ID
     const guildId = process.env.DISCORD_GUILD_ID
     const limit = req.query.limit || "20"
+    const after = req.query.after || ""
 
     if (!botToken || !channelId) {
       return res.status(400).json({
@@ -24,16 +25,18 @@ app.get("/api/discord/messages", async (req, res) => {
       })
     }
 
-    const response = await fetch(
-      `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bot ${botToken}`,
-          "Content-Type": "application/json",
-        },
-      }
-    )
+    let url = `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}`
+    if (after) {
+      url += `&after=${after}`
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+      },
+    })
 
     if (!response.ok) {
       console.error(`Discord API error: ${response.status} ${response.statusText}`)
@@ -44,9 +47,7 @@ app.get("/api/discord/messages", async (req, res) => {
 
     const messages = await response.json()
 
-    const formattedMessages = messages
-      .reverse()
-      .map((msg) => {
+    const formattedMessages = messages.map((msg) => {
         const attachments = (msg.attachments || []).map((att) => {
           const filename = att.filename.toLowerCase()
           const isImage = imageExtensions.some((ext) => filename.endsWith(ext))
@@ -87,7 +88,17 @@ app.get("/api/discord/messages", async (req, res) => {
         }
       })
 
-    res.json({ messages: formattedMessages })
+    const oldestMessageId = formattedMessages.length > 0 
+      ? formattedMessages[formattedMessages.length - 1].id 
+      : null
+
+    res.json({ 
+      messages: formattedMessages,
+      pagination: {
+        oldestMessageId: oldestMessageId,
+        hasMore: formattedMessages.length === parseInt(limit)
+      }
+    })
   } catch (error) {
     console.error("Discord API error:", error)
     res.status(500).json({
