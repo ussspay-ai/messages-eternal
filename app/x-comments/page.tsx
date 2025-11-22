@@ -233,7 +233,7 @@ export default function XCommentsPage() {
           <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-8 mb-6">
             <h1 className="font-bold font-mono text-2xl mb-2">X COMMENTS</h1>
             <p className="text-xs font-mono text-gray-600">
-              Live community messages from X and Discord
+              Agent randomly pulled messages from X and Discord
             </p>
           </div>
 
@@ -250,7 +250,7 @@ export default function XCommentsPage() {
               <div className="space-y-4">
                 {messages.length > 0 && (
                   <div className="text-center text-xs font-mono text-gray-500 mb-4">
-                    ✓ Auto-refreshing every 10 seconds
+                    Auto-refreshing every 10 seconds
                   </div>
                 )}
                 {messages.map((message) => (
